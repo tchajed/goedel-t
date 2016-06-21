@@ -98,8 +98,40 @@ Proof.
   apply e'.
 Defined.
 
-Definition expr_weaken Gamma Gamma' t t' (e: expr (Gamma ++ Gamma') t) : expr (Gamma ++ t' :: Gamma') t.
-Admitted.
+Lemma variable_weaken_insertion : forall Gamma Gamma' t a,
+    variable (Gamma ++ Gamma') t ->
+    variable (Gamma ++ a :: Gamma') t.
+Proof.
+  intros.
+  generalize dependent Gamma'.
+  induction Gamma; simpl; intros.
+  exact (var_outer _ H).
+  inversion H; subst.
+  apply var_here.
+  apply var_outer.
+  apply IHGamma; assumption.
+Defined.
+
+Definition expr_weaken Gamma Gamma' t t' (e: expr (Gamma ++ Gamma') t) :
+  expr (Gamma ++ t' :: Gamma') t.
+Proof.
+  remember (Gamma ++ Gamma').
+  revert Gamma Heql.
+  induction e; intros; subst.
+  + apply var; apply variable_weaken_insertion; assumption.
+  + apply zero.
+  + apply succ.
+    now apply IHe.
+  + specialize (IHe (t1 :: Gamma0)).
+    rewrite <- List.app_comm_cons in *.
+    apply abs.
+    now apply IHe.
+  + now eapply app; [apply IHe1 | apply IHe2 ].
+  + apply iter.
+    now apply IHe1.
+    now apply (IHe2 (t :: Gamma0)).
+    now apply IHe3.
+Defined.
 
 Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t :=
   expr_weaken nil Gamma t' e.
@@ -112,16 +144,16 @@ Definition subst Gamma t' (e': expr Gamma t') t (e: expr (Gamma ++ [t']) t) : ex
   + eapply subst_var; eassumption.
   + exact zero.
   + apply succ.
-    apply IHe; auto.
+    now apply IHe.
   + eapply abs.
     eapply IHe; trivial.
-    apply expr_shift; assumption.
-  + eapply app; [ apply IHe1 | apply IHe2 ]; eauto.
+    now apply expr_shift.
+  + now eapply app; [ apply IHe1 | apply IHe2 ].
   + eapply iter.
-    apply IHe1; eauto.
+    now apply IHe1.
     apply IHe2; trivial.
     apply expr_shift; assumption.
-    apply IHe3; trivial.
+    now apply IHe3.
 Defined.
 
 Inductive val Gamma : forall t, expr Gamma t -> Prop :=
