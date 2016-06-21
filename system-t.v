@@ -40,6 +40,6 @@ Inductive hasTy : mapping -> type -> Type :=
 | iter : forall Gamma t,
     forall (ez: hasTy Gamma t)
       (v: variable Gamma t)
-      (e: hasTy Gamma t)
+      (e: hasTy (t :: Gamma) t)
       (n: hasTy Gamma natTy),
       hasTy Gamma t.
