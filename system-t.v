@@ -61,7 +61,7 @@ Inductive hasTy (Gamma: mapping) : type -> Type :=
 | var : forall t (v: variable Gamma t), hasTy Gamma t
 | zero : hasTy Gamma natTy
 | succ : hasTy Gamma natTy -> hasTy Gamma natTy
-| abs : forall t1 (v: variable Gamma t1) t2,
+| abs : forall t1 t2,
     forall (e: hasTy (t1 :: Gamma) t2),
       hasTy Gamma (arrow t1 t2)
 | app : forall t1 t2,
@@ -70,7 +70,6 @@ Inductive hasTy (Gamma: mapping) : type -> Type :=
       hasTy Gamma t2
 | iter : forall t,
     forall (ez: hasTy Gamma t)
-      (v: variable Gamma t)
       (e: hasTy (t :: Gamma) t)
       (n: hasTy Gamma natTy),
       hasTy Gamma t.
@@ -91,5 +90,4 @@ Defined.
 Inductive val Gamma : forall t, hasTy Gamma t -> Prop :=
 | val_z : val (zero Gamma)
 | val_s : forall (e : hasTy Gamma natTy), val e -> val (succ e)
-| val_abs : forall t1 (v: variable Gamma t1) t2 (e: hasTy (t1 :: Gamma) t2), val (abs v e).
-
+| val_abs : forall t1 t2 (e: hasTy (t1 :: Gamma) t2), val (abs e).
