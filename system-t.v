@@ -98,12 +98,31 @@ Proof.
   apply e'.
 Defined.
 
+Definition expr_weaken Gamma Gamma' t t' (e: expr (Gamma ++ Gamma') t) : expr (Gamma ++ t' :: Gamma') t.
+Admitted.
+
+Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t :=
+  expr_weaken nil Gamma t' e.
+
 Definition subst Gamma t' (e': expr Gamma t') t (e: expr (Gamma ++ [t']) t) : expr Gamma t.
   intros.
   remember (Gamma ++ [t']).
-  induction e; subst.
+  generalize dependent Gamma.
+  induction e; intros; subst.
   + eapply subst_var; eassumption.
-Admitted.
+  + exact zero.
+  + apply succ.
+    apply IHe; auto.
+  + eapply abs.
+    eapply IHe; trivial.
+    apply expr_shift; assumption.
+  + eapply app; [ apply IHe1 | apply IHe2 ]; eauto.
+  + eapply iter.
+    apply IHe1; eauto.
+    apply IHe2; trivial.
+    apply expr_shift; assumption.
+    apply IHe3; trivial.
+Defined.
 
 Inductive val Gamma : forall t, expr Gamma t -> Prop :=
 | val_z : val zero
