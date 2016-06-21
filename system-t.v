@@ -16,7 +16,7 @@ Implicit Types (Gamma: mapping) (t: type).
 
 Inductive variable : mapping -> type -> Type :=
 | var_here : forall Gamma t, variable (t :: Gamma) t
-| var_later : forall Gamma t t', variable Gamma t -> variable (t' :: Gamma) t.
+| var_outer : forall Gamma t t', variable Gamma t -> variable (t' :: Gamma) t.
 
 Theorem variable_to_in : forall Gamma t,
     variable Gamma t -> List.In t Gamma.
@@ -26,12 +26,12 @@ Qed.
 
 Definition variable_add Gamma t (v: variable Gamma t) t' :
   variable (t' :: Gamma) t :=
-  var_later t' v.
+  var_outer t' v.
 
 Fixpoint var_index Gamma t (v: variable Gamma t) : nat :=
   match v with
   | var_here _ _ => 0
-  | var_later _ v => S (var_index v)
+  | var_outer _ v => S (var_index v)
   end.
 
 Definition var_index_eq Gamma t1 t2 (v1: variable Gamma t1) (v2: variable Gamma t2) :
