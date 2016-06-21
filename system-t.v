@@ -75,8 +75,28 @@ Inductive expr (Gamma: mapping) : type -> Type :=
       expr Gamma t.
 Arguments zero {Gamma}.
 
+Definition var_is_last Gamma t' t (v: variable (Gamma ++ [t']) t) : variable Gamma t + {t = t'}.
+Proof.
+  induction Gamma; simpl in *.
+  inversion v; subst.
+  right; auto.
+  inversion H2.
+
+  inversion v; subst.
+  left; apply var_here.
+
+  destruct (IHGamma H2).
+  left; apply var_outer; assumption.
+  right; auto.
+Defined.
+
 Definition subst_var Gamma t' (e': expr Gamma t') t (v: variable (Gamma ++ [t']) t) : expr Gamma t.
-Admitted.
+Proof.
+  destruct (var_is_last _ _ v).
+  exact (var v0).
+  subst.
+  apply e'.
+Defined.
 
 Definition subst Gamma t' (e': expr Gamma t') t (e: expr (Gamma ++ [t']) t) : expr Gamma t.
   intros.
