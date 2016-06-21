@@ -26,18 +26,18 @@ Definition variable_add Gamma t (v: variable Gamma t) t' :
   variable (t' :: Gamma) t :=
   var_later t' v.
 
-Inductive hasTy : mapping -> type -> Type :=
-| var : forall Gamma t (v: variable Gamma t), hasTy Gamma t
-| zero : forall Gamma, hasTy Gamma natTy
-| succ : forall Gamma, hasTy Gamma natTy -> hasTy Gamma natTy
-| abs : forall Gamma t1 (v: variable Gamma t1) t2,
+Inductive hasTy (Gamma: mapping) : type -> Type :=
+| var : forall t (v: variable Gamma t), hasTy Gamma t
+| zero : hasTy Gamma natTy
+| succ : hasTy Gamma natTy -> hasTy Gamma natTy
+| abs : forall t1 (v: variable Gamma t1) t2,
     forall (e: hasTy (t1 :: Gamma) t2),
       hasTy Gamma (arrow t1 t2)
-| app : forall Gamma t1 t2,
+| app : forall t1 t2,
     forall (e1: hasTy Gamma (arrow t1 t2))
       (e2: hasTy Gamma t1),
       hasTy Gamma t2
-| iter : forall Gamma t,
+| iter : forall t,
     forall (ez: hasTy Gamma t)
       (v: variable Gamma t)
       (e: hasTy (t :: Gamma) t)
