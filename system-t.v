@@ -75,10 +75,14 @@ Inductive hasTy (Gamma: mapping) : type -> Type :=
       hasTy Gamma t.
 Arguments zero {Gamma}.
 
-Definition subst Gamma t0 t (x: variable (t0 :: Gamma) t) (e': hasTy [] t) t' (e: hasTy (t0 :: Gamma) t') : hasTy Gamma t'.
+Definition subst_var Gamma t' (e': hasTy Gamma t') t (v: variable (Gamma ++ [t']) t) : hasTy Gamma t.
+Admitted.
+
+Definition subst Gamma t' (e': hasTy Gamma t') t (e: hasTy (Gamma ++ [t']) t) : hasTy Gamma t.
   intros.
-  remember e.
-  induction e.
+  remember (Gamma ++ [t']).
+  induction e; subst.
+  + eapply subst_var; eassumption.
 Admitted.
 
 Inductive val Gamma : forall t, hasTy Gamma t -> Prop :=
@@ -99,11 +103,11 @@ Inductive step : forall t, hasTy [] t -> hasTy [] t -> Prop :=
                step (app e1 e2) (app e1 e2')
 | step_apE : forall t1 t2 (e2: hasTy [] t1) (e: hasTy [t1] t2),
                val e2 ->
-               step (app (abs e) e2) (subst (var_here [] t1) e2 e)
+               step (app (abs e) e2) (subst e2 e)
 | step_iter1 : forall t (ez: hasTy [] t) e n n',
                  step n n' ->
                  step (iter ez e n) (iter ez e n')
 | step_iter2 : forall t (ez: hasTy [] t) e,
                  step (iter ez e zero) ez
 | step_iter3 : forall t (ez: hasTy [] t) e n,
-                 step (iter ez e (succ n)) (subst (var_here [] t) (iter ez e n) e).
+                 step (iter ez e (succ n)) (subst (iter ez e n) e).
