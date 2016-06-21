@@ -87,3 +87,9 @@ Definition subst Gamma t (x: variable Gamma t) (e': hasTy Gamma t) t' (e: hasTy 
 
   all: exact h.
 Defined.
+
+Inductive val Gamma : forall t, hasTy Gamma t -> Prop :=
+| val_z : val (zero Gamma)
+| val_s : forall (e : hasTy Gamma natTy), val e -> val (succ e)
+| val_abs : forall t1 (v: variable Gamma t1) t2 (e: hasTy (t1 :: Gamma) t2), val (abs v e).
+
