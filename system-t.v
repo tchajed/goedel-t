@@ -73,33 +73,37 @@ Inductive hasTy (Gamma: mapping) : type -> Type :=
       (e: hasTy (t :: Gamma) t)
       (n: hasTy Gamma natTy),
       hasTy Gamma t.
+Arguments zero {Gamma}.
 
-Definition subst Gamma t (x: variable Gamma t) (e': hasTy Gamma t) t' (e: hasTy Gamma t') : hasTy Gamma t'.
+Definition subst Gamma t0 t (x: variable (t0 :: Gamma) t) (e': hasTy [] t) t' (e: hasTy (t0 :: Gamma) t') : hasTy Gamma t'.
   intros.
   remember e.
   induction e.
-  destruct (var_index_eq v x).
-  abstract (apply var_indices_eq in e;
-    destruct e; subst;
-    exact e').
-  exact (var v).
-
-  all: exact h.
-Defined.
+Admitted.
 
 Inductive val Gamma : forall t, hasTy Gamma t -> Prop :=
-| val_z : val (zero Gamma)
+| val_z : val zero
 | val_s : forall (e : hasTy Gamma natTy), val e -> val (succ e)
 | val_abs : forall t1 t2 (e: hasTy (t1 :: Gamma) t2), val (abs e).
 
-Inductive step Gamma : forall t, hasTy Gamma t -> hasTy Gamma t -> Prop :=
-| step_s : forall (e e': hasTy Gamma natTy),
+Inductive step : forall t, hasTy [] t -> hasTy [] t -> Prop :=
+| step_s : forall (e e': hasTy [] natTy),
              step e e' ->
              step (succ e) (succ e')
-| step_ap1 : forall t1 t2 (e1 e1': hasTy Gamma (arrow t1 t2)) e2,
+| step_ap1 : forall t1 t2 (e1 e1': hasTy [] (arrow t1 t2)) e2,
                step e1 e1' ->
                step (app e1 e2) (app e1' e2)
-| step_ap2 : forall t1 t2 (e1: hasTy Gamma (arrow t1 t2)) e2 e2',
+| step_ap2 : forall t1 t2 (e1: hasTy [] (arrow t1 t2)) e2 e2',
                val e1 ->
                step e2 e2' ->
-               step (app e1 e2) (app e1 e2').
+               step (app e1 e2) (app e1 e2')
+| step_apE : forall t1 t2 (e2: hasTy [] t1) (e: hasTy [t1] t2),
+               val e2 ->
+               step (app (abs e) e2) (subst (var_here [] t1) e2 e)
+| step_iter1 : forall t (ez: hasTy [] t) e n n',
+                 step n n' ->
+                 step (iter ez e n) (iter ez e n')
+| step_iter2 : forall t (ez: hasTy [] t) e,
+                 step (iter ez e zero) ez
+| step_iter3 : forall t (ez: hasTy [] t) e n,
+                 step (iter ez e (succ n)) (subst (var_here [] t) (iter ez e n) e).
