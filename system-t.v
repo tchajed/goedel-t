@@ -91,3 +91,15 @@ Inductive val Gamma : forall t, hasTy Gamma t -> Prop :=
 | val_z : val (zero Gamma)
 | val_s : forall (e : hasTy Gamma natTy), val e -> val (succ e)
 | val_abs : forall t1 t2 (e: hasTy (t1 :: Gamma) t2), val (abs e).
+
+Inductive step Gamma : forall t, hasTy Gamma t -> hasTy Gamma t -> Prop :=
+| step_s : forall (e e': hasTy Gamma natTy),
+             step e e' ->
+             step (succ e) (succ e')
+| step_ap1 : forall t1 t2 (e1 e1': hasTy Gamma (arrow t1 t2)) e2,
+               step e1 e1' ->
+               step (app e1 e2) (app e1' e2)
+| step_ap2 : forall t1 t2 (e1: hasTy Gamma (arrow t1 t2)) e2 e2',
+               val e1 ->
+               step e2 e2' ->
+               step (app e1 e2) (app e1 e2').
