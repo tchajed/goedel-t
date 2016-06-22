@@ -161,7 +161,7 @@ Inductive val Gamma : forall t, expr Gamma t -> Prop :=
 | val_s : forall (e : expr Gamma natTy), val e -> val (succ e)
 | val_abs : forall t1 t2 (e: expr (t1 :: Gamma) t2), val (abs e).
 
-Inductive step : forall Gamma t, expr Gamma t -> expr Gamma t -> Prop :=
+Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
 | step_s : forall (e e': expr [] natTy),
              step e e' ->
              step (succ e) (succ e')
@@ -183,7 +183,10 @@ Inductive step : forall Gamma t, expr Gamma t -> expr Gamma t -> Prop :=
 | step_iter3 : forall t (ez: expr [] t) e n,
                  step (iter ez e (succ n)) (subst (iter ez e n) e).
 
-Hint Constructors step val.
+Inductive step' : forall t Gamma, expr Gamma t -> expr Gamma t -> Prop :=
+| step'_step : forall t (e e': expr [] t),
+                 step e e' ->
+                 step' e e'.
 
 Ltac deex :=
   match goal with
@@ -198,17 +201,32 @@ Ltac inj_pair2 :=
     apply inj_pair2 in H; subst
   end.
 
+Lemma step_step' : forall t (e e': expr [] t),
+                     step' e e' ->
+                     step e e'.
+  intros.
+  inversion H; repeat inj_pair2; auto.
+Qed.
+Hint Resolve step_step'.
+
+Hint Constructors step step' val.
+
 Theorem progress : forall t (e: expr [] t),
     val e \/
     exists e', step e e'.
 Proof.
-  remember [].
-  induction e; subst; eauto.
-  inversion v.
-  destruct (IHe eq_refl); repeat deex; eauto.
-  destruct IHe1; repeat deex; eauto.
-  destruct IHe2; repeat deex; eauto.
-  inversion H; inj_pair2; eauto.
-  destruct IHe3; repeat deex; eauto.
-  inversion H; inj_pair2; eauto.
+  intros.
+  assert (val e \/ exists e', step' e e'). {
+    remember [].
+    induction e; subst; eauto.
+    inversion v.
+    destruct (IHe eq_refl); repeat deex; eauto 10.
+    destruct IHe1; repeat deex; eauto 10.
+    destruct IHe2; repeat deex; eauto 10.
+    inversion H; inj_pair2; eauto 10.
+    destruct IHe3; repeat deex; eauto 10.
+    inversion H; inj_pair2; eauto 10.
+  }
+  destruct H; eauto.
+  deex. eauto 10.
 Qed.
