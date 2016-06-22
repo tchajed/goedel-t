@@ -1,4 +1,5 @@
 Require List.
+Require Import Relations.
 Import List.ListNotations.
 Open Scope list.
 Require Import Equality.
@@ -230,3 +231,14 @@ Proof.
   destruct H; eauto.
   deex. eauto 10.
 Qed.
+
+Definition hereditary_termination_nat (e: expr [] natTy) : Prop :=
+  exists e', val e' /\ clos_refl_trans _ (@step natTy) e e'.
+
+Fixpoint hereditary_termination t : forall e: expr [] t, Prop :=
+  match t with
+  | natTy => fun e => hereditary_termination_nat e
+  | arrow t1 t2 => fun e =>
+                    (forall e1: expr [] t1, hereditary_termination e1 ->
+                                       hereditary_termination (app e e1))
+  end.
