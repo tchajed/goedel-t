@@ -161,7 +161,7 @@ Inductive val Gamma : forall t, expr Gamma t -> Prop :=
 | val_s : forall (e : expr Gamma natTy), val e -> val (succ e)
 | val_abs : forall t1 t2 (e: expr (t1 :: Gamma) t2), val (abs e).
 
-Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
+Inductive step : forall Gamma t, expr Gamma t -> expr Gamma t -> Prop :=
 | step_s : forall (e e': expr [] natTy),
              step e e' ->
              step (succ e) (succ e')
@@ -182,3 +182,33 @@ Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
                  step (iter ez e zero) ez
 | step_iter3 : forall t (ez: expr [] t) e n,
                  step (iter ez e (succ n)) (subst (iter ez e n) e).
+
+Hint Constructors step val.
+
+Ltac deex :=
+  match goal with
+  | [ H: exists (varname:_), _ |- _ ] =>
+    let name := fresh varname in
+    destruct H as [name ?]
+  end.
+
+Ltac inj_pair2 :=
+  match goal with
+  | [ H: existT ?P ?p _ = existT ?P ?p _ |- _ ] =>
+    apply inj_pair2 in H; subst
+  end.
+
+Theorem progress : forall t (e: expr [] t),
+    val e \/
+    exists e', step e e'.
+Proof.
+  remember [].
+  induction e; subst; eauto.
+  inversion v.
+  destruct (IHe eq_refl); repeat deex; eauto.
+  destruct IHe1; repeat deex; eauto.
+  destruct IHe2; repeat deex; eauto.
+  inversion H; inj_pair2; eauto.
+  destruct IHe3; repeat deex; eauto.
+  inversion H; inj_pair2; eauto.
+Qed.
