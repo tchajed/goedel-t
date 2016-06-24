@@ -268,3 +268,42 @@ Fixpoint hereditary_termination t : forall e: expr [] t, Prop :=
                     (forall e1: expr [] t1, hereditary_termination e1 ->
                                        hereditary_termination (app e e1))
   end.
+
+Inductive HT : forall Gamma t (e: expr Gamma t), Prop :=
+| HT_hereditary_termination : forall t (e: expr [] t), hereditary_termination e -> HT e.
+
+Lemma HT_destruct : forall t (e: expr [] t), HT e ->
+                                        hereditary_termination e.
+Proof.
+  inversion 1; repeat inj_pair2; eauto.
+Qed.
+
+Hint Constructors HT.
+
+Hint Constructors clos_refl_trans clos_refl_trans_1n.
+
+Lemma step_respects_succ : forall e e',
+    clos_refl_trans step e e' ->
+    clos_refl_trans step (succ e) (succ e').
+Proof.
+  induction 1; intros; eauto.
+Qed.
+
+Hint Resolve step_respects_succ.
+
+Theorem exprs_ht : forall t (e: expr [] t),
+    HT e.
+Proof.
+  remember [].
+  induction e; subst.
+  - inversion v.
+  - constructor; hnf.
+    exists zero; eauto.
+  - constructor; hnf.
+    intuition.
+    apply HT_destruct in H.
+    hnf in H; deex.
+
+    exists (succ e'); intuition eauto.
+  - (* fails due to non-closed term *)
+Abort.
