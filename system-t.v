@@ -194,7 +194,10 @@ Ltac deex :=
   | [ H: exists (varname:_), _ |- _ ] =>
     let name := fresh varname in
     destruct H as [name ?]
-  end.
+  end;
+  repeat match goal with
+         | [ H: _ /\ _ |- _ ] => destruct H
+         end.
 
 Ltac inj_pair2 :=
   match goal with
@@ -233,7 +236,30 @@ Proof.
 Qed.
 
 Definition hereditary_termination_nat (e: expr [] natTy) : Prop :=
-  exists e', val e' /\ clos_refl_trans _ (@step natTy) e e'.
+  exists e', clos_refl_trans _ (step (t:=natTy)) e e' /\ val e'.
+
+Hint Resolve rt_step rt_refl.
+
+Ltac inv_step :=
+  match goal with
+  | [ H: step _ _ |- _ ] =>
+    inversion H; inj_pair2; clear H
+  end.
+
+Arguments step {t} e e'.
+Arguments clos_refl_trans {A} _ _ _.
+
+Lemma step_from_succ : forall e e',
+    clos_refl_trans step (succ e) e' ->
+    exists v', e' = succ v'.
+Proof.
+  intros.
+  remember (succ e).
+  generalize dependent e.
+  induction H; intros; subst; eauto.
+  inv_step; eauto.
+  edestruct IHclos_refl_trans1; eauto.
+Qed.
 
 Fixpoint hereditary_termination t : forall e: expr [] t, Prop :=
   match t with
