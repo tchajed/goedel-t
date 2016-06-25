@@ -261,6 +261,15 @@ Proof.
   edestruct IHclos_refl_trans1; eauto.
 Qed.
 
+(* non-strictly positive definition *)
+(*
+Inductive HT : forall t (e: expr [] t), Prop :=
+| HT_natTy : forall e, hereditary_termination_nat e -> HT e
+| HT_arrow : forall t1 t2 (e: expr [] (arrow t1 t2)), (forall (e1: expr [] t1), HT e1 ->
+                                                                      HT (app e e1)) ->
+                                                 HT e.
+*)
+
 Fixpoint hereditary_termination t : forall e: expr [] t, Prop :=
   match t with
   | natTy => fun e => hereditary_termination_nat e
