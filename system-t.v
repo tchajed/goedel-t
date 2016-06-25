@@ -11,6 +11,11 @@ Inductive type :=
   | natTy
   | arrow : type -> type -> type.
 
+Definition type_dec : forall (t1 t2: type), {t1=t2} + {t1<>t2}.
+Proof.
+  decide equality.
+Defined.
+
 Definition mapping := list type.
 
 Implicit Types (Gamma: mapping) (t: type).
