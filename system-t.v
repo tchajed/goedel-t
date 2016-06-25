@@ -321,3 +321,132 @@ Proof.
     exists (succ e'); intuition eauto.
   - (* fails due to non-closed term *)
 Abort.
+
+Definition substitution Gamma Gamma' :=
+  forall t (v: variable Gamma t), expr Gamma' t.
+
+Definition substitution_shift : forall Gamma Gamma' t
+    (gamma: substitution Gamma Gamma'),
+    substitution (t :: Gamma) (t :: Gamma').
+  unfold substitution; intros.
+  inversion v; subst.
+  apply var.
+  apply var_here.
+  pose proof (gamma _ H2).
+  now apply expr_shift.
+Defined.
+
+Definition substitution_shift_expr : forall Gamma Gamma' t
+                                       (e': expr Gamma' t)
+                                       (gamma: substitution Gamma Gamma'),
+    substitution (t :: Gamma) Gamma'.
+  unfold substitution; intros.
+  inversion v; subst.
+  exact e'.
+  exact (gamma _ H2).
+Defined.
+
+Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
+           t (e: expr Gamma t) : expr Gamma' t.
+  intros.
+  generalize dependent Gamma'.
+  generalize dependent Gamma.
+  induction 1; intros; subst.
+  + exact (gamma _ v).
+  + exact zero.
+  + apply succ.
+    now apply IHe.
+  + eapply abs.
+    eapply IHe; trivial.
+    now apply substitution_shift.
+  + now eapply app; [ apply IHe1 | apply IHe2 ].
+  + eapply iter.
+    now apply IHe1.
+    apply IHe2; trivial.
+    now apply substitution_shift.
+    now apply IHe3.
+Defined.
+
+Definition HT_context Gamma (gamma: substitution Gamma []) :=
+  forall t (v: variable Gamma t), HT (gamma _ v).
+
+Lemma hereditary_termination_zero : hereditary_termination zero.
+Proof.
+  hnf.
+  eauto.
+Qed.
+
+Lemma hereditary_termination_succ : forall e,
+    hereditary_termination e -> hereditary_termination (succ e).
+Proof.
+  simpl; unfold hereditary_termination_nat; intros.
+  deex.
+  eauto.
+Qed.
+
+Hint Resolve hereditary_termination_zero.
+Hint Resolve hereditary_termination_succ.
+
+Lemma hereditary_termination_succ' : forall (e: expr [] natTy),
+    hereditary_termination (succ e) ->
+    hereditary_termination e.
+Proof.
+  simpl; unfold hereditary_termination_nat; intros.
+  deex.
+
+  apply clos_rt_rt1n in H.
+  remember (succ e).
+  generalize dependent e.
+  induction H; intros; subst.
+  inversion H0; eauto.
+
+  inv_step.
+  intuition.
+  specialize (H e'); intuition.
+  deex; eauto.
+Qed.
+
+Lemma HT_respects_step : forall Gamma t (e e': expr Gamma t),
+    HT e ->
+    step' e e' ->
+    HT e'.
+Proof.
+  induction e; intros.
+  - inversion H0; repeat inj_pair2.
+    inv_step.
+  - inversion H0; repeat inj_pair2.
+    inv_step.
+  - inversion H0; repeat inj_pair2.
+    inv_step.
+    constructor; simpl; unfold hereditary_termination_nat.
+    assert (step' e e'0); eauto.
+    apply HT_destruct in H.
+    apply hereditary_termination_succ' in H.
+    apply HT_hereditary_termination in H.
+    specialize (IHe e'0); intuition.
+    apply HT_destruct in H4; simpl in *; unfold hereditary_termination_nat in *.
+    deex; eauto.
+Abort.
+
+Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
+    HT_context gamma -> HT (apply_substitution gamma e).
+Proof.
+  intros.
+  generalize dependent gamma.
+  induction e; simpl; intros.
+  - eauto.
+  - auto.
+  - specialize (IHe _ H).
+    apply HT_destruct in IHe.
+    eauto.
+  - constructor.
+    simpl.
+    intros.
+    specialize (IHe (substitution_shift_expr e1 gamma)).
+
+    assert (HT_context (substitution_shift_expr e1 gamma)).
+    hnf; intros.
+    admit. (* computation of substitution_shift_expr depending on v *)
+
+    intuition.
+Abort.
