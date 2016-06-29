@@ -241,6 +241,34 @@ Notation "R ^*" := (clos_refl_trans_1n _ R) (at level 0).
 
 Definition irred t (e: expr [] t) := ~exists e', step e e'.
 
+Definition val_decidable : forall t (e: expr [] t), {val e} + {~val e}.
+  intros. 
+  destruct e; eauto; right; intro; inversion H.
+Defined.
+
+Lemma not_val_steps : forall t (e: expr [] t), ~val e -> exists e', step e e'.
+Proof.
+  intros.
+  dependent induction e.
+  - inversion v.
+  - contradiction H; eauto.
+  - contradiction H; eauto.
+  - contradiction H; eauto.
+  - destruct (val_decidable e1).
+    + destruct (val_decidable e2).
+      * inversion v; inj_pair2; subst. eauto.
+      * edestruct IHe2; eauto.
+    + edestruct IHe1; eauto.
+Qed.
+    
+Lemma irred_val : forall t (e: expr [] t), irred e -> val e.
+Proof.
+  unfold irred.
+  intros.
+  destruct (val_decidable e); eauto.
+  eapply not_val_steps in n. tauto.
+Qed.
+         
 Fixpoint good_val t : expr [] t -> Prop :=
   let good_expr {t'} (e: expr [] t') := forall e', step^* e e' -> irred e' -> good_val e' in
   match t with
@@ -253,11 +281,18 @@ Fixpoint good_val t : expr [] t -> Prop :=
 Definition good_expr t (e: expr [] t) := forall e', step^* e e' -> irred e' -> good_val e'.
 
 (* double turnstile *)
-Fixpoint safe Gamma t (e: expr Gamma t) :=
+Definition safe Gamma t (e: expr Gamma t) :=
   forall gamma : substitution Gamma [], good_expr (apply_substitution gamma e).
+
+
 
 Theorem expr_safe :
   forall Gamma t (e: expr Gamma t), safe e.
+Proof.
+  unfold safe, good_expr.
+  induction t; simpl; intros.
+  - eapply irred_val in H0. inversion H0; inj_pair2; eauto.
+  - 
 Abort.
     
 
