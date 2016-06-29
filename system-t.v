@@ -275,7 +275,7 @@ Inductive HT : forall t (e: expr [] t), Prop :=
                                                  HT e.
 *)
 
-Fixpoint hereditary_termination t : forall e: expr [] t, Prop :=
+Fixpoint hereditary_termination t : expr [] t -> Prop :=
   match t with
   | natTy => fun e => hereditary_termination_nat e
   | arrow t1 t2 => fun e =>

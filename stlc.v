@@ -147,6 +147,45 @@ Definition subst Gamma t' (e': expr Gamma t') t (e: expr (Gamma ++ [t']) t) : ex
   + now eapply app; [ apply IHe1 | apply IHe2 ].
 Defined.
 
+Definition substitution Gamma Gamma' :=
+  forall t (v: variable Gamma t), expr Gamma' t.
+
+Definition substitution_shift : forall Gamma Gamma' t
+    (gamma: substitution Gamma Gamma'),
+    substitution (t :: Gamma) (t :: Gamma').
+  unfold substitution; intros.
+  inversion v; subst.
+  apply var.
+  apply var_here.
+  pose proof (gamma _ H2).
+  now apply expr_shift.
+Defined.
+
+Definition substitution_shift_expr : forall Gamma Gamma' t
+                                       (e': expr Gamma' t)
+                                       (gamma: substitution Gamma Gamma'),
+    substitution (t :: Gamma) Gamma'.
+  unfold substitution; intros.
+  inversion v; subst.
+  exact e'.
+  exact (gamma _ H2).
+Defined.
+
+Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
+           t (e: expr Gamma t) : expr Gamma' t.
+  intros.
+  generalize dependent Gamma'.
+  generalize dependent Gamma.
+  induction 1; intros; subst.
+  + exact (gamma _ v).
+  + apply true.
+  + apply false.
+  + eapply abs.
+    eapply IHe; trivial.
+    now apply substitution_shift.
+  + now eapply app; [ apply IHe1 | apply IHe2 ].
+Defined.
+
 Inductive val Gamma : forall t, expr Gamma t -> Prop :=
 | val_t : val true
 | val_f : val false
@@ -199,6 +238,28 @@ Hint Resolve step_step'.
 Hint Constructors step step' val.
 
 Notation "R ^*" := (clos_refl_trans_1n _ R) (at level 0).
+
+Definition irred t (e: expr [] t) := ~exists e', step e e'.
+
+Fixpoint good_val t : expr [] t -> Prop :=
+  let good_expr {t'} (e: expr [] t') := forall e', step^* e e' -> irred e' -> good_val e' in
+  match t with
+    | boolTy => fun e => e = false \/ e = true
+    | arrow t1 t2 =>
+      fun e => exists e0: expr [t1] t2, e = abs e0 /\
+                                forall v, good_val v -> good_expr (subst v e0)
+  end.
+
+Definition good_expr t (e: expr [] t) := forall e', step^* e e' -> irred e' -> good_val e'.
+
+(* double turnstile *)
+Fixpoint safe Gamma t (e: expr Gamma t) :=
+  forall gamma : substitution Gamma [], good_expr (apply_substitution gamma e).
+
+Theorem expr_safe :
+  forall Gamma t (e: expr Gamma t), safe e.
+Abort.
+    
 
 Theorem type_safety :
   forall t (e e': expr [] t),
