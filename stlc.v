@@ -4,6 +4,7 @@ Import List.ListNotations.
 Open Scope list.
 Require Import Equality.
 Import EqdepTheory.
+Require Import FunctionalExtensionality.
 
 Set Implicit Arguments.
 
@@ -246,7 +247,8 @@ Definition val_decidable : forall t (e: expr [] t), {val e} + {~val e}.
   destruct e; eauto; right; intro; inversion H.
 Defined.
 
-Lemma not_val_steps : forall t (e: expr [] t), ~val e -> exists e', step e e'.
+
+Lemma progress : forall t (e: expr [] t), ~val e -> exists e', step e e'.
 Proof.
   intros.
   dependent induction e.
@@ -260,14 +262,33 @@ Proof.
       * edestruct IHe2; eauto.
     + edestruct IHe1; eauto.
 Qed.
-    
+
 Lemma irred_val : forall t (e: expr [] t), irred e -> val e.
 Proof.
   unfold irred.
   intros.
   destruct (val_decidable e); eauto.
-  eapply not_val_steps in n. tauto.
+  eapply progress in n. tauto.
 Qed.
+
+Lemma val_irred : forall t (e: expr [] t), val e -> irred e.
+Proof.
+  unfold irred.
+  intros.
+  inversion H; subst; repeat inj_pair2; subst; intro; deex; inversion H0.
+Qed.
+
+Hint Resolve val_irred.
+
+Definition red_decidable : forall t (e: expr [] t), {exists e', step e e'} + {~exists e', step e e'}.
+  intros.
+  destruct (val_decidable e); eauto.
+  right.
+  eapply val_irred in v.
+  unfold irred in v; eauto.
+  left.
+  eapply progress; eauto.
+Defined.
          
 Fixpoint good_val t : expr [] t -> Prop :=
   let good_expr {t'} (e: expr [] t') := forall e', step^* e e' -> irred e' -> good_val e' in
@@ -284,21 +305,102 @@ Definition good_expr t (e: expr [] t) := forall e', step^* e e' -> irred e' -> g
 Definition safe Gamma t (e: expr Gamma t) :=
   forall gamma : substitution Gamma [], good_expr (apply_substitution gamma e).
 
+Hint Constructors clos_refl_trans_1n.
 
+Lemma app_reduces :
+  forall t1 t2 (e1: expr [] (arrow t1 t2)) e2 e',
+    step^* (app e1 e2) e' -> irred e' ->
+    exists e1' e2', step^* e1 e1' /\ irred e1' /\ step^* e2 e2' /\ irred e2'.
+Proof.
+  intros.
+  remember (app e1 e2) as e.
+  generalize dependent e1.
+  generalize dependent e2.
+  induction H; intros; subst.
+  - eapply irred_val in H0. inversion H0.
+  - inversion H; repeat inj_pair2; subst.
+    + edestruct IHclos_refl_trans_1n; eauto; deex.
+      eauto 10.
+    + edestruct IHclos_refl_trans_1n; eauto; deex.
+      eauto 10.
+    + eauto 10.
+Qed.
 
 Theorem expr_safe :
   forall Gamma t (e: expr Gamma t), safe e.
 Proof.
   unfold safe, good_expr.
+  intros.
+  remember (apply_substitution gamma e) as e0.
+  clear e Heqe0.
+  generalize dependent t.
   induction t; simpl; intros.
   - eapply irred_val in H0. inversion H0; inj_pair2; eauto.
-  - 
-Abort.
-    
+  - dependent destruction e0.
+    + inversion v.
+    + inversion H; subst; eauto.
+      inversion H1.
+    + eapply app_reduces in H; intuition; repeat deex.
+      eapply irred_val in H0. inversion H0; inj_pair2; subst.
+      eauto.
+Qed.
+
+Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
+  intros Gamma t v.
+  eapply var; eauto.
+Defined.
+
+
+Lemma noop_substitution_shift : forall {Gamma} t, substitution_shift (t := t) (noop_substitution (Gamma := Gamma)) = noop_substitution.
+  intros.
+  extensionality t0.
+  extensionality v.
+  dependent destruction v; simpl.
+  unfold eq_rec_r, eq_rec.
+  repeat rewrite <- eq_rect_eq.
+  unfold noop_substitution. trivial.
+  unfold eq_rec_r, eq_rec.
+  repeat rewrite <- eq_rect_eq.
+  unfold noop_substitution. trivial.
+Qed.
+
+Lemma substitute_noop_substitution :
+  forall Gamma t (e: expr Gamma t),
+    apply_substitution noop_substitution e = e.
+Proof.
+  induction e; eauto.
+  - simpl. rewrite noop_substitution_shift. congruence.
+  - simpl. congruence.
+Qed.
+
+Lemma good_val_val :
+  forall t (e: expr [] t),
+    good_val e -> val e.
+Proof.
+  induction t; intros.
+  - simpl in H. intuition; subst; eauto.
+  - simpl in H. deex; subst; eauto.
+Qed.
+
+Hint Resolve good_val_val.
 
 Theorem type_safety :
   forall t (e e': expr [] t),
     step^* e e' ->
     val e' \/ exists e'', step e' e''.
 Proof.
-Abort.
+  (* this is actually trivial by progress *)
+  intros.
+  assert (good_expr e).
+  {
+    assert (safe e) by (apply expr_safe).
+    unfold safe in H0.
+    specialize (H0 noop_substitution).
+    rewrite substitute_noop_substitution in *.
+    trivial.
+  }
+  unfold good_expr in H0.
+  specialize (H0 e').
+  intuition.
+  destruct (red_decidable e'); intuition.
+Qed.
