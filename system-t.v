@@ -426,6 +426,67 @@ Qed.
 
 Hint Resolve step_to_step'.
 
+Definition deterministic A (R: A -> A -> Prop) :=
+  forall a a' a'', R a a' -> R a a'' ->
+              a' = a''.
+
+Theorem deterministic_clos_refl_R : forall A (R: A -> A -> Prop),
+    deterministic R ->
+    forall a a' a'',
+      clos_refl_trans R a a'' ->
+      (forall a''', ~R a'' a''') ->
+      R a a' ->
+      clos_refl_trans R a' a''.
+Proof.
+  intros.
+  Search clos_refl_trans.
+  apply clos_rt_rt1n in H0.
+  apply clos_rt1n_rt.
+
+  induction H0.
+  apply H1 in H2; intuition eauto.
+  pose proof (H _ _ _ H0 H2); subst.
+  eauto.
+Qed.
+
+Ltac cleanup :=
+  match goal with
+  | [ H: ?a = ?a |- _ ] => clear H
+  end.
+
+Theorem step_deterministic : forall t, @deterministic (expr [] t) step.
+Proof.
+  unfold deterministic; intros.
+  induction H; subst; repeat inj_pair2;
+    inversion H0; subst; repeat inj_pair2;
+      try pose proof (IHstep _ ltac:(eauto));
+      repeat match goal with
+             | _ => progress intuition eauto
+             | _ => cleanup
+             | _ => progress subst
+             end.
+Abort.
+
+Lemma step_clos_refl_R : forall t (e e' e'': expr [] t),
+    clos_refl_trans step e e'' ->
+    step e e' ->
+    clos_refl_trans step e' e''.
+Proof.
+Abort.
+
+Ltac simplify :=
+  repeat match goal with
+         | [ H: HT _ |- _ ] => inversion H; subst; clear H;
+                             repeat inj_pair2
+         | [ H: step' _ _ |- _ ] => inversion H; subst; clear H;
+                                  repeat inj_pair2
+         | [ H: @hereditary_termination natTy _ |- _ ] =>
+           simpl in H; unfold hereditary_termination_nat in H
+         | [ |- HT _ ] => constructor; hnf
+         | [ H: exists _, _ |- _ ] => deex
+         | [ H: ?a = ?a |- _ ] => clear H
+         end.
+
 Lemma HT_respects_step : forall Gamma t (e e': expr Gamma t),
     HT e ->
     step' e e' ->
@@ -443,6 +504,7 @@ Proof.
     deex; eauto.
   - inv_step'.
     constructor; hnf.
+
     assert (HT e1 -> HT e1') by intuition.
     assert (HT e1).
     constructor; hnf; intros.
@@ -461,10 +523,8 @@ Lemma HT_prepend_step : forall Gamma t (e e': expr Gamma t),
     HT e.
 Proof.
   intros.
-  destruct Gamma; try solve [ inversion H ].
-  apply HT_destruct in H.
-  econstructor.
-  un_step'.
+  destruct Gamma; try solve [ inversion H ];
+    simplify.
   generalize dependent e.
   generalize dependent e'.
   induction t; simpl; intros.
@@ -478,7 +538,7 @@ Lemma subst_shift :
     apply_substitution (substitution_shift_expr e2 gamma) e =
     subst e2 (apply_substitution (substitution_shift gamma) e).
 Admitted.
-  
+
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
     HT_context gamma -> HT (apply_substitution gamma e).
 Proof.
