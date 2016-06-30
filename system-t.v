@@ -406,15 +406,16 @@ Proof.
   deex; eauto.
 Qed.
 
-Ltac inv_step' :=
+Ltac un_step' :=
   match goal with
   | [ H: step' _ _ |- _ ] =>
     inversion H; subst; repeat inj_pair2; clear H;
     repeat match goal with
            | [ H: ?a = ?a |- _ ] => clear H
-           end;
-    inv_step
+           end
   end.
+
+Ltac inv_step' := un_step'; inv_step.
 
 Lemma step_to_step' : forall t (e e': expr [] t),
     step e e' ->
@@ -454,6 +455,30 @@ Proof.
   - admit.
 Abort.
 
+Lemma HT_prepend_step : forall Gamma t (e e': expr Gamma t),
+    HT e' ->
+    step' e e' ->
+    HT e.
+Proof.
+  intros.
+  destruct Gamma; try solve [ inversion H ].
+  apply HT_destruct in H.
+  econstructor.
+  un_step'.
+  generalize dependent e.
+  generalize dependent e'.
+  induction t; simpl; intros.
+  - unfold hereditary_termination_nat in *; deex.
+    eauto.
+  - eauto.
+Qed.
+
+Lemma subst_shift :
+  forall Gamma (gamma: substitution Gamma []) t1 t2 (e: expr (t1 :: Gamma) t2) e2,
+    apply_substitution (substitution_shift_expr e2 gamma) e =
+    subst e2 (apply_substitution (substitution_shift gamma) e).
+Admitted.
+  
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
     HT_context gamma -> HT (apply_substitution gamma e).
 Proof.
@@ -469,10 +494,20 @@ Proof.
     simpl.
     intros.
     specialize (IHe (substitution_shift_expr e1 gamma)).
-
     assert (HT_context (substitution_shift_expr e1 gamma)).
-    hnf; intros.
-    admit. (* computation of substitution_shift_expr depending on v *)
-
+    {
+      hnf; intros.
+      (* computation of substitution_shift_expr depending on v *)
+      econstructor.
+      unfold substitution_shift_expr.
+      dependent destruction v; unfold eq_rec_r, eq_rec; repeat rewrite <- eq_rect_eq; eauto using HT_destruct.
+    }
     intuition.
+    apply HT_destruct.
+    (* Need to figure out which way the application steps, I guess *)
+    eapply HT_prepend_step.
+    2: econstructor; eapply step_apE.
+    rewrite <- subst_shift.
+    assumption.
+    (* Not actually true. *)
 Abort.
