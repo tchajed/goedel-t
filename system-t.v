@@ -248,7 +248,7 @@ Hint Resolve rt_step rt_refl.
 Ltac inv_step :=
   match goal with
   | [ H: step _ _ |- _ ] =>
-    inversion H; inj_pair2; clear H
+    inversion H; repeat inj_pair2; clear H
   end.
 
 Arguments step {t} e e'.
@@ -406,26 +406,52 @@ Proof.
   deex; eauto.
 Qed.
 
+Ltac inv_step' :=
+  match goal with
+  | [ H: step' _ _ |- _ ] =>
+    inversion H; subst; repeat inj_pair2; clear H;
+    repeat match goal with
+           | [ H: ?a = ?a |- _ ] => clear H
+           end;
+    inv_step
+  end.
+
+Lemma step_to_step' : forall t (e e': expr [] t),
+    step e e' ->
+    step' e e'.
+Proof.
+  eauto.
+Qed.
+
+Hint Resolve step_to_step'.
+
 Lemma HT_respects_step : forall Gamma t (e e': expr Gamma t),
     HT e ->
     step' e e' ->
     HT e'.
 Proof.
-  induction e; intros.
-  - inversion H0; repeat inj_pair2.
-    inv_step.
-  - inversion H0; repeat inj_pair2.
-    inv_step.
-  - inversion H0; repeat inj_pair2.
-    inv_step.
+  induction e; intros; try solve [ inv_step' ].
+  - inv_step'.
     constructor; simpl; unfold hereditary_termination_nat.
     assert (step' e e'0); eauto.
     apply HT_destruct in H.
     apply hereditary_termination_succ' in H.
     apply HT_hereditary_termination in H.
     specialize (IHe e'0); intuition.
-    apply HT_destruct in H4; simpl in *; unfold hereditary_termination_nat in *.
+    apply HT_destruct in H3; simpl in *; unfold hereditary_termination_nat in *.
     deex; eauto.
+  - inv_step'.
+    constructor; hnf.
+    assert (HT e1 -> HT e1') by intuition.
+    assert (HT e1).
+    constructor; hnf; intros.
+    admit. (* need something about application *)
+    admit. (* HT e1' doesn't seem especially useful *)
+
+    admit.
+
+    admit.
+  - admit.
 Abort.
 
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
