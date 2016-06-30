@@ -4,6 +4,7 @@ Import List.ListNotations.
 Open Scope list.
 Require Import Equality.
 Import EqdepTheory.
+Require Import FunctionalExtensionality.
 
 Set Implicit Arguments.
 
@@ -142,25 +143,58 @@ Defined.
 Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t :=
   expr_weaken nil Gamma t' e.
 
-Definition subst Gamma t' (e': expr Gamma t') t (e: expr (Gamma ++ [t']) t) : expr Gamma t.
+Definition substitution Gamma Gamma' :=
+  forall t (v: variable Gamma t), expr Gamma' t.
+
+Definition substitution_shift : forall Gamma Gamma' t
+    (gamma: substitution Gamma Gamma'),
+    substitution (t :: Gamma) (t :: Gamma').
+  unfold substitution; intros.
+  inversion v; subst.
+  apply var.
+  apply var_here.
+  pose proof (gamma _ H2).
+  now apply expr_shift.
+Defined.
+
+Definition substitution_shift_expr : forall Gamma Gamma' t
+                                       (e': expr Gamma' t)
+                                       (gamma: substitution Gamma Gamma'),
+    substitution (t :: Gamma) Gamma'.
+  unfold substitution; intros.
+  inversion v; subst.
+  exact e'.
+  exact (gamma _ H2).
+Defined.
+
+Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
+           t (e: expr Gamma t) : expr Gamma' t.
   intros.
-  remember (Gamma ++ [t']).
+  generalize dependent Gamma'.
   generalize dependent Gamma.
-  induction e; intros; subst.
-  + eapply subst_var; eassumption.
+  induction 1; intros; subst.
+  + exact (gamma _ v).
   + exact zero.
   + apply succ.
     now apply IHe.
   + eapply abs.
     eapply IHe; trivial.
-    now apply expr_shift.
+    now apply substitution_shift.
   + now eapply app; [ apply IHe1 | apply IHe2 ].
   + eapply iter.
     now apply IHe1.
     apply IHe2; trivial.
-    apply expr_shift; assumption.
+    now apply substitution_shift.
     now apply IHe3.
 Defined.
+
+Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
+  intros Gamma t v.
+  eapply var; eauto.
+Defined.
+
+Definition subst t' (e': expr [] t') t (e: expr [t'] t) : expr [] t :=
+  apply_substitution (substitution_shift_expr e' noop_substitution) e.
 
 Inductive val Gamma : forall t, expr Gamma t -> Prop :=
 | val_z : val zero
@@ -321,51 +355,6 @@ Proof.
     exists (succ e'); intuition eauto.
   - (* fails due to non-closed term *)
 Abort.
-
-Definition substitution Gamma Gamma' :=
-  forall t (v: variable Gamma t), expr Gamma' t.
-
-Definition substitution_shift : forall Gamma Gamma' t
-    (gamma: substitution Gamma Gamma'),
-    substitution (t :: Gamma) (t :: Gamma').
-  unfold substitution; intros.
-  inversion v; subst.
-  apply var.
-  apply var_here.
-  pose proof (gamma _ H2).
-  now apply expr_shift.
-Defined.
-
-Definition substitution_shift_expr : forall Gamma Gamma' t
-                                       (e': expr Gamma' t)
-                                       (gamma: substitution Gamma Gamma'),
-    substitution (t :: Gamma) Gamma'.
-  unfold substitution; intros.
-  inversion v; subst.
-  exact e'.
-  exact (gamma _ H2).
-Defined.
-
-Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
-           t (e: expr Gamma t) : expr Gamma' t.
-  intros.
-  generalize dependent Gamma'.
-  generalize dependent Gamma.
-  induction 1; intros; subst.
-  + exact (gamma _ v).
-  + exact zero.
-  + apply succ.
-    now apply IHe.
-  + eapply abs.
-    eapply IHe; trivial.
-    now apply substitution_shift.
-  + now eapply app; [ apply IHe1 | apply IHe2 ].
-  + eapply iter.
-    now apply IHe1.
-    apply IHe2; trivial.
-    now apply substitution_shift.
-    now apply IHe3.
-Defined.
 
 Definition HT_context Gamma (gamma: substitution Gamma []) :=
   forall t (v: variable Gamma t), HT (gamma _ v).
@@ -533,10 +522,51 @@ Proof.
   - eauto.
 Qed.
 
+Definition compose_substitutions Gamma Gamma' Gamma''
+           (s1: substitution Gamma Gamma')
+           (s2: substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
+  fun t v => apply_substitution s2 (s1 t v).
+
+Theorem apply_compose_substitutions :
+  forall Gamma Gamma' Gamma'' (s1: substitution Gamma Gamma') (s2: substitution Gamma' Gamma'') t (e: expr Gamma t),
+    apply_substitution (compose_substitutions s1 s2) e = apply_substitution s2 (apply_substitution s1 e).
+Proof.
+  unfold compose_substitutions.
+  intros.
+Admitted.
+
+Ltac eq_simpl := simpl; unfold eq_rec_r, eq_rec; repeat rewrite <- eq_rect_eq; simpl.
+
+(* TODO: factor properly *)
 Lemma subst_shift :
   forall Gamma (gamma: substitution Gamma []) t1 t2 (e: expr (t1 :: Gamma) t2) e2,
     apply_substitution (substitution_shift_expr e2 gamma) e =
     subst e2 (apply_substitution (substitution_shift gamma) e).
+Proof.
+  unfold subst.
+  intros.
+  rewrite <- apply_compose_substitutions.
+  f_equal.
+  unfold compose_substitutions.
+  extensionality t.
+  extensionality v.
+  dependent destruction v; subst; eauto.
+  eq_simpl.
+  remember (gamma t v).
+  clear.
+  generalize dependent (@nil type).
+  intros.
+  remember (expr_shift t1 e0).
+  revert Heqe.
+  induction e0; intros; subst; eauto; eq_simpl.
+  - erewrite <- IHe0; eauto.
+  - (* TODO: don't know how to do this case. *)
+    admit.
+  - erewrite <- IHe0_1; eauto.
+    erewrite <- IHe0_2; eauto.
+  - erewrite <- IHe0_1; eauto.
+    erewrite <- IHe0_3; eauto.
+    admit.
 Admitted.
 
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
