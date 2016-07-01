@@ -674,7 +674,14 @@ Proof.
     intuition.
     specialize (H0 _ ltac:(eauto)).
     eapply HT_prepend_step; try eapply step_iter3; eauto.
-    admit. (* probably requires something about substitutions *)
+    rewrite <- subst_shift.
+    eapply HT_destruct.
+    eapply IHe2.
+    unfold HT_context in *; intros.
+    econstructor.
+    dependent destruction v.
+    eq_simpl; eauto.
+    eq_simpl; eapply HT_destruct; eauto.
     specialize (IHclos_refl_trans_1n ltac:(eauto) ltac:(eauto)).
     eapply HT_prepend_step; try eapply step_iter1; eauto.
-Abort.
+Qed.
