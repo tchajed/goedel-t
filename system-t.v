@@ -193,6 +193,22 @@ Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
   eapply var; eauto.
 Defined.
 
+Ltac eq_simpl := simpl; unfold eq_rec_r, eq_rec; rewrite <- ?eq_rect_eq; simpl.
+
+Lemma noop_substitution_shift : forall {Gamma} t, substitution_shift (t := t) (noop_substitution (Gamma := Gamma)) = noop_substitution.
+  intros.
+  extensionality t0.
+  extensionality v.
+  dependent destruction v; eq_simpl; reflexivity.
+Qed.
+
+Lemma substitute_noop_substitution :
+  forall Gamma t (e: expr Gamma t),
+    apply_substitution noop_substitution e = e.
+Proof.
+  induction e; eauto; simpl; try rewrite noop_substitution_shift; congruence.
+Qed.
+
 Definition subst t' (e': expr [] t') t (e: expr [t'] t) : expr [] t :=
   apply_substitution (substitution_shift_expr e' noop_substitution) e.
 
@@ -344,23 +360,6 @@ Proof.
 Qed.
 
 Hint Resolve step_respects_succ.
-
-Theorem exprs_ht : forall t (e: expr [] t),
-    HT e.
-Proof.
-  remember [].
-  induction e; subst.
-  - inversion v.
-  - constructor; hnf.
-    exists zero; eauto.
-  - constructor; hnf.
-    intuition.
-    apply HT_destruct in H.
-    hnf in H; deex.
-
-    exists (succ e'); intuition eauto.
-  - (* fails due to non-closed term *)
-Abort.
 
 Definition HT_context Gamma (gamma: substitution Gamma []) :=
   forall t (v: variable Gamma t), HT (gamma _ v).
@@ -558,8 +557,6 @@ Proof.
   intros.
 Admitted.
 
-Ltac eq_simpl := simpl; unfold eq_rec_r, eq_rec; rewrite <- ?eq_rect_eq; simpl.
-
 (* TODO: factor properly *)
 Lemma subst_shift :
   forall Gamma (gamma: substitution Gamma []) t1 t2 (e: expr (t1 :: Gamma) t2) e2,
@@ -684,4 +681,26 @@ Proof.
     eq_simpl; eapply HT_destruct; eauto.
     specialize (IHclos_refl_trans_1n ltac:(eauto) ltac:(eauto)).
     eapply HT_prepend_step; try eapply step_iter1; eauto.
+Qed.
+
+Theorem exprs_ht :
+  forall t (e: expr [] t),
+    HT e.
+Proof.
+  intros.
+  replace e with (apply_substitution noop_substitution e).
+  eapply HT_context_subst.
+  unfold HT_context; intros.
+  inversion v.
+  eapply substitute_noop_substitution.
+Qed.
+
+Theorem exprs_terminating :
+  forall t (e: expr [] t),
+    terminating e.
+Proof.
+  intros.
+  eapply hereditary_termination_terminating.
+  eapply HT_destruct.
+  eapply exprs_ht.
 Qed.
