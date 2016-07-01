@@ -370,16 +370,22 @@ Proof.
   deex; eauto.
 Qed.
 
-Ltac un_step' :=
-  match goal with
-  | [ H: step' _ _ |- _ ] =>
-    inversion H; subst; repeat inj_pair2; clear H;
-    repeat match goal with
-           | [ H: ?a = ?a |- _ ] => clear H
-           end
-  end.
-
-Ltac inv_step' := un_step'; inv_step.
+Ltac simplify :=
+  repeat match goal with
+         | [ |- forall _, _ ] => intros
+         | _ => progress subst
+         | [ H: exists _, _ |- _ ] => deex
+         | [ H: ?a = ?a |- _ ] => clear H
+         | _ => inj_pair2
+         | [ H: step' _ _ |- _ ] => inversion H; subst; clear H;
+                                  repeat inj_pair2
+         | [ H: @hereditary_termination natTy _ |- _ ] =>
+           simpl in H
+         | [ H: @hereditary_termination (arrow _ _) _ |- _ ] =>
+           simpl in H
+         | _ => progress eq_simpl
+         | _ => progress unfold terminating in *
+         end.
 
 Lemma step_to_step' : forall t (e e': expr [] t),
     step e e' ->
@@ -412,18 +418,12 @@ Proof.
   eauto.
 Qed.
 
-Ltac cleanup :=
-  match goal with
-  | [ H: ?a = ?a |- _ ] => clear H
-  end.
-
 Lemma val_no_step : forall t (e e': expr [] t),
     val e ->
     ~step e e'.
 Proof.
-  induction 1; intros; subst; repeat inj_pair2;
-    inversion 1; subst; repeat inj_pair2;
-      intuition eauto.
+  induction 1; simplify;
+    inversion 1; simplify; intuition eauto.
 Qed.
 
 Definition val_dec : forall t (e: expr [] t), {val e} + {~val e}.
@@ -435,10 +435,10 @@ Defined.
 Theorem step_deterministic : forall t, deterministic (step (t:=t)).
 Proof.
   unfold deterministic; intros.
-  induction H; subst; repeat inj_pair2;
-    inversion H0; subst; repeat inj_pair2;
+  induction H; simplify;
+    inversion H0; simplify;
       try pose proof (IHstep _ ltac:(eauto));
-      repeat (intuition eauto || cleanup || subst);
+      repeat (intuition eauto || simplify);
       try solve [ exfalso; match goal with
                            | [ H: val ?e, H': step ?e ?e' |- _ ] =>
                              apply (val_no_step H H')
@@ -449,48 +449,23 @@ Proof.
                            end ].
 Qed.
 
-Hint Resolve step_deterministic.
-Hint Resolve val_no_step.
-Hint Resolve deterministic_clos_refl_R.
-
 Lemma step_clos_refl_R : forall t (e e' e'': expr [] t),
     val e'' ->
     clos_refl_trans step e e'' ->
     step e e' ->
     clos_refl_trans step e' e''.
 Proof.
-  eauto.
+  eauto using step_deterministic, val_no_step, deterministic_clos_refl_R.
 Qed.
 
-Ltac simplify :=
-  repeat match goal with
-         | [ H: step' _ _ |- _ ] => inversion H; subst; clear H;
-                                  repeat inj_pair2
-         | [ H: @hereditary_termination natTy _ |- _ ] =>
-           simpl in H; unfold terminating in H
-         | [ H: exists _, _ |- _ ] => deex
-         | [ H: ?a = ?a |- _ ] => clear H
-         end.
+Hint Resolve step_clos_refl_R.
 
 Lemma HT_respects_step : forall t (e e': expr [] t),
     hereditary_termination e ->
     step e e' ->
     hereditary_termination e'.
 Proof.
-  intros.
-  induction t; intros.
-  - simpl in *.
-    unfold terminating in *; deex.
-    eapply clos_rt_rt1n in H.
-    destruct H.
-    + eapply val_no_step in H1.
-      eapply H1 in H0.
-      intuition.
-    + assert (y = e') by (eapply step_deterministic; eauto); subst.
-      eapply clos_rt1n_rt in H2.
-      eauto.
-  - simpl in *; deex.
-    eauto.
+  induction t; simplify; eauto.
 Qed.
 
 Hint Resolve HT_respects_step.
@@ -500,14 +475,10 @@ Lemma HT_prepend_step : forall t (e e': expr [] t),
     step e e' ->
     hereditary_termination e.
 Proof.
-  intros.
   simplify.
   generalize dependent e.
   generalize dependent e'.
-  induction t; simpl; intros.
-  - unfold terminating in *; deex.
-    eauto.
-  - deex. eauto.
+  induction t; simplify; eauto.
 Qed.
 
 Definition compose_substitutions Gamma Gamma' Gamma''
@@ -526,8 +497,7 @@ Lemma expr_weaken_abs_reduce : forall Gamma' t t1 t2 (e: expr (t1 :: Gamma') t2)
     expr_weaken [] Gamma' t (abs e) =
     abs (expr_weaken [t1] _ t e).
 Proof.
-  unfold expr_weaken; intros.
-  intros; eq_simpl; eauto.
+  unfold expr_weaken; simplify; eauto.
 Qed.
 
 Lemma expr_weaken_app_reduce : forall Gamma Gamma' t t1 t2 (e1: expr _ (arrow t1 t2)) e2,
@@ -557,7 +527,7 @@ Lemma expr_shift_substitution : forall t Gamma' t' (e: expr Gamma' t')
     apply_substitution (substitution_shift s2) (expr_shift t e).
 Proof.
   unfold expr_shift.
-  dependent induction e; eq_simpl; intros; eauto;
+  dependent induction e; simplify; eauto;
     rewrite ?expr_weaken_succ_reduce,
             ?expr_weaken_abs_reduce,
             ?expr_weaken_app_reduce,
@@ -581,7 +551,7 @@ Lemma substitution_shift_compose_commute : forall Gamma Gamma' Gamma'' t
 Proof.
   unfold compose_substitutions.
   intros; extensionality t'; extensionality v.
-  dependent destruction v; eq_simpl; eauto using expr_shift_substitution.
+  dependent destruction v; simplify; eauto using expr_shift_substitution.
 Qed.
 
 Theorem apply_compose_substitutions :
@@ -590,7 +560,7 @@ Theorem apply_compose_substitutions :
     apply_substitution (compose_substitutions s1 s2) e =
     apply_substitution s2 (apply_substitution s1 e).
 Proof.
-  induction e; simpl; intros; eauto;
+  induction e; simplify; eauto;
     rewrite ?substitution_shift_compose_commute;
     now f_equal.
 Qed.
@@ -606,10 +576,8 @@ Proof.
   rewrite <- apply_compose_substitutions.
   f_equal.
   unfold compose_substitutions.
-  extensionality t.
-  extensionality v.
-  dependent destruction v; subst; eauto.
-  eq_simpl.
+  extensionality t; extensionality v.
+  dependent destruction v; simplify; eauto.
   remember (gamma t v).
   clear.
   generalize dependent (@nil type).
@@ -620,10 +588,8 @@ Proof.
   - erewrite <- IHe0; eauto.
   - (* TODO: don't know how to do this case. *)
     admit.
-  - erewrite <- IHe0_1; eauto.
-    erewrite <- IHe0_2; eauto.
-  - erewrite <- IHe0_1; eauto.
-    erewrite <- IHe0_3; eauto.
+  - erewrite <- IHe0_1, <- IHe0_2 by eauto; auto.
+  - erewrite <- IHe0_1, <- IHe0_3 by eauto; auto.
     admit.
 Admitted.
 
@@ -632,10 +598,7 @@ Theorem hereditary_termination_terminating :
     hereditary_termination e -> terminating e.
 Proof.
   intros.
-  destruct t; unfold hereditary_termination in *; eauto.
-  deex.
-  unfold terminating.
-  eauto.
+  destruct t; simplify; eauto.
 Qed.
 
 Lemma HT_abs :
