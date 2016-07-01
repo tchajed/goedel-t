@@ -221,6 +221,7 @@ Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
 | step_iter2 : forall t (ez: expr [] t) e,
                  step (iter ez e zero) ez
 | step_iter3 : forall t (ez: expr [] t) e n,
+                 val n ->
                  step (iter ez e (succ n)) (subst (iter ez e n) e).
 
 Inductive step' : forall t Gamma, expr Gamma t -> expr Gamma t -> Prop :=
@@ -461,25 +462,35 @@ Proof.
   right; inversion 1; intuition.
 Defined.
 
-Theorem step_deterministic : forall t, @deterministic (expr [] t) step.
+Theorem step_deterministic : forall t, deterministic (step (t:=t)).
 Proof.
   unfold deterministic; intros.
   induction H; subst; repeat inj_pair2;
     inversion H0; subst; repeat inj_pair2;
       try pose proof (IHstep _ ltac:(eauto));
-      repeat match goal with
-             | _ => progress intuition eauto
-             | _ => cleanup
-             | _ => progress subst
-             end.
-Abort.
+      repeat (intuition eauto || cleanup || subst);
+      try solve [ exfalso; match goal with
+                           | [ H: val ?e, H': step ?e ?e' |- _ ] =>
+                             apply (val_no_step H H')
+                           | [ H: step ?e _ |- _ ] =>
+                             let Hval := fresh in
+                             assert (val e) as Hval by eauto;
+                             apply (val_no_step Hval H)
+                           end ].
+Qed.
+
+Hint Resolve step_deterministic.
+Hint Resolve val_no_step.
+Hint Resolve deterministic_clos_refl_R.
 
 Lemma step_clos_refl_R : forall t (e e' e'': expr [] t),
+    val e'' ->
     clos_refl_trans step e e'' ->
     step e e' ->
     clos_refl_trans step e' e''.
 Proof.
-Abort.
+  eauto.
+Qed.
 
 Ltac simplify :=
   repeat match goal with
