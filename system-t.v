@@ -505,44 +505,36 @@ Ltac simplify :=
          | [ H: ?a = ?a |- _ ] => clear H
          end.
 
-Lemma HT_respects_step : forall Gamma t (e e': expr Gamma t),
-    HT e ->
-    step' e e' ->
-    HT e'.
-Proof.
-  induction e; intros; try solve [ inv_step' ].
-  - inv_step'.
-    constructor; simpl; unfold terminating.
-    assert (step' e e'0); eauto.
-    apply HT_destruct in H.
-    apply hereditary_termination_succ' in H.
-    apply HT_hereditary_termination in H.
-    specialize (IHe e'0); intuition.
-    apply HT_destruct in H3; simpl in *; unfold terminating in *.
-    deex; eauto.
-  - inv_step'.
-    constructor; hnf.
-
-    assert (HT e1 -> HT e1') by intuition.
-    assert (HT e1).
-    constructor; hnf; intros.
-    admit. (* need something about application *)
-    admit. (* HT e1' doesn't seem especially useful *)
-
-    admit.
-
-    admit.
-  - admit.
-Abort.
-
-Lemma HT_prepend_step : forall Gamma t (e e': expr Gamma t),
-    HT e' ->
-    step' e e' ->
-    HT e.
+Lemma HT_respects_step : forall t (e e': expr [] t),
+    hereditary_termination e ->
+    step e e' ->
+    hereditary_termination e'.
 Proof.
   intros.
-  destruct Gamma; try solve [ inversion H ];
-    simplify.
+  induction t; intros.
+  - simpl in *.
+    unfold terminating in *; deex.
+    eapply clos_rt_rt1n in H.
+    destruct H.
+    + eapply val_no_step in H1.
+      eapply H1 in H0.
+      intuition.
+    + assert (y = e') by (eapply step_deterministic; eauto); subst.
+      eapply clos_rt1n_rt in H2.
+      eauto.
+  - simpl in *; deex.
+    eauto.
+Qed.
+
+Hint Resolve HT_respects_step.
+
+Lemma HT_prepend_step : forall t (e e': expr [] t),
+    hereditary_termination e' ->
+    step e e' ->
+    hereditary_termination e.
+Proof.
+  intros.
+  simplify.
   generalize dependent e.
   generalize dependent e'.
   induction t; simpl; intros.
@@ -564,7 +556,7 @@ Proof.
   intros.
 Admitted.
 
-Ltac eq_simpl := simpl; unfold eq_rec_r, eq_rec; repeat rewrite <- eq_rect_eq; simpl.
+Ltac eq_simpl := simpl; unfold eq_rec_r, eq_rec; rewrite <- ?eq_rect_eq; simpl.
 
 (* TODO: factor properly *)
 Lemma subst_shift :
@@ -598,6 +590,44 @@ Proof.
     admit.
 Admitted.
 
+Theorem hereditary_termination_terminating :
+  forall t (e: expr [] t),
+    hereditary_termination e -> terminating e.
+Proof.
+  intros.
+  destruct t; unfold hereditary_termination in *; eauto.
+  deex.
+  unfold terminating.
+  eauto.
+Qed.
+
+Lemma HT_abs :
+  forall Gamma t1 t2 (e1: expr Gamma (arrow t1 t2)) e2,
+    HT e1 ->
+    HT e2 ->
+    HT (app e1 e2).
+Proof.
+  intros.
+  destruct Gamma; try solve [ inversion H ].
+  eapply HT_destruct in H.
+  eapply HT_destruct in H0.
+  econstructor.
+  edestruct H.
+  intuition.
+  generalize H0; intros Ht2.
+  apply hereditary_termination_terminating in H0.
+  destruct H0.
+  intuition.
+  eapply clos_rt_rt1n in H1.
+  eapply clos_rt_rt1n in H2.
+  remember (abs x).
+  induction H2; subst.
+  induction H1.
+  eapply HT_prepend_step; try eapply step_apE; eauto.
+  eapply HT_prepend_step; try eapply step_ap2; eauto.
+  eapply HT_prepend_step; try eapply step_ap1; eauto.
+Qed.
+
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
     HT_context gamma -> HT (apply_substitution gamma e).
 Proof.
@@ -625,5 +655,6 @@ Proof.
     dependent destruction v.
     eq_simpl; eauto.
     eq_simpl; eapply HT_destruct; eauto.
-  - econstructor.
+  - eapply HT_abs; eauto.
+  - admit.
 Abort.
