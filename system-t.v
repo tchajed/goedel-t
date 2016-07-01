@@ -328,6 +328,8 @@ Proof.
   inversion 1; repeat inj_pair2; eauto.
 Qed.
 
+Hint Resolve HT_destruct.
+
 Hint Constructors HT.
 
 Hint Constructors clos_refl_trans clos_refl_trans_1n.
@@ -656,5 +658,23 @@ Proof.
     eq_simpl; eauto.
     eq_simpl; eapply HT_destruct; eauto.
   - eapply HT_abs; eauto.
-  - admit.
+  - econstructor.
+    specialize (IHe3 gamma H).
+    remember (apply_substitution gamma e3).
+    clear e3 Heqe.
+    eapply HT_destruct in IHe3.
+    generalize IHe3; intro Ht3.
+    eapply hereditary_termination_terminating in Ht3.
+    unfold terminating in Ht3; deex.
+    eapply clos_rt_rt1n in H0.
+    induction H0.
+    dependent induction H1.
+    eapply HT_prepend_step; try eapply step_iter2; eauto.
+    eapply hereditary_termination_succ' in IHe3.
+    intuition.
+    specialize (H0 _ ltac:(eauto)).
+    eapply HT_prepend_step; try eapply step_iter3; eauto.
+    admit. (* probably requires something about substitutions *)
+    specialize (IHclos_refl_trans_1n ltac:(eauto) ltac:(eauto)).
+    eapply HT_prepend_step; try eapply step_iter1; eauto.
 Abort.
