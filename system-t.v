@@ -129,9 +129,9 @@ Proof.
   + apply zero.
   + apply succ.
     now apply IHe.
-  + specialize (IHe (t1 :: Gamma0)).
+  + apply abs.
+    specialize (IHe (t1 :: Gamma0)).
     rewrite <- List.app_comm_cons in *.
-    apply abs.
     now apply IHe.
   + now eapply app; [apply IHe1 | apply IHe2 ].
   + apply iter.
@@ -549,13 +549,85 @@ Definition compose_substitutions Gamma Gamma' Gamma''
            (s2: substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
   fun t v => apply_substitution s2 (s1 t v).
 
-Theorem apply_compose_substitutions :
-  forall Gamma Gamma' Gamma'' (s1: substitution Gamma Gamma') (s2: substitution Gamma' Gamma'') t (e: expr Gamma t),
-    apply_substitution (compose_substitutions s1 s2) e = apply_substitution s2 (apply_substitution s1 e).
+Lemma expr_weaken_succ_reduce : forall Gamma Gamma' t (e: expr _ natTy),
+    expr_weaken Gamma Gamma' t (succ e) =
+    succ (expr_weaken Gamma Gamma' t e).
+Proof.
+  eauto.
+Qed.
+
+Lemma expr_weaken_abs_reduce : forall Gamma' t t1 t2 (e: expr (t1 :: Gamma') t2),
+    expr_weaken [] Gamma' t (abs e) =
+    abs (expr_weaken [t1] _ t e).
+Proof.
+  unfold expr_weaken; intros.
+  intros; eq_simpl; eauto.
+Qed.
+
+Lemma expr_weaken_app_reduce : forall Gamma Gamma' t t1 t2 (e1: expr _ (arrow t1 t2)) e2,
+    expr_weaken Gamma Gamma' t (app e1 e2) =
+    app (expr_weaken Gamma Gamma' t e1) (expr_weaken Gamma Gamma' t e2).
+Proof.
+  eauto.
+Qed.
+
+Lemma expr_weaken_iter_reduce : forall Gamma' t t'
+                                  (e1: expr _ t')
+                                  (e2: expr (t' :: Gamma') t')
+                                  (n: expr _ natTy),
+    expr_weaken [] Gamma' t (iter e1 e2 n) =
+    iter (expr_weaken [] Gamma' t e1)
+         (expr_weaken [t'] Gamma' t e2)
+         (expr_weaken [] Gamma' t n).
+Proof.
+  eauto.
+Qed.
+
+Lemma expr_shift_substitution : forall t Gamma' t' (e: expr Gamma' t')
+                                  Gamma Gamma''
+                                  (s1: substitution Gamma Gamma')
+                                  (s2: substitution Gamma' Gamma''),
+    expr_shift t (apply_substitution s2 e) =
+    apply_substitution (substitution_shift s2) (expr_shift t e).
+Proof.
+  unfold expr_shift.
+  dependent induction e; eq_simpl; intros; eauto;
+    rewrite ?expr_weaken_succ_reduce,
+            ?expr_weaken_abs_reduce,
+            ?expr_weaken_app_reduce,
+             ?expr_weaken_iter_reduce.
+  - f_equal.
+    erewrite IHe; now eauto.
+  - f_equal; eauto.
+    admit.
+  - f_equal;
+      erewrite ?IHe1, ?IHe2; now eauto.
+  - f_equal;
+      erewrite ?IHe1, ?IHe3; eauto.
+    admit.
+Admitted.
+
+Lemma substitution_shift_compose_commute : forall Gamma Gamma' Gamma'' t
+                                             (s1: substitution Gamma Gamma')
+                                             (s2: substitution Gamma' Gamma''),
+    substitution_shift (t:=t) (compose_substitutions s1 s2) =
+    compose_substitutions (substitution_shift s1) (substitution_shift s2).
 Proof.
   unfold compose_substitutions.
-  intros.
-Admitted.
+  intros; extensionality t'; extensionality v.
+  dependent destruction v; eq_simpl; eauto using expr_shift_substitution.
+Qed.
+
+Theorem apply_compose_substitutions :
+  forall Gamma t (e: expr Gamma t)
+    Gamma' Gamma'' (s1: substitution Gamma Gamma') (s2: substitution Gamma' Gamma''),
+    apply_substitution (compose_substitutions s1 s2) e =
+    apply_substitution s2 (apply_substitution s1 e).
+Proof.
+  induction e; simpl; intros; eauto;
+    rewrite ?substitution_shift_compose_commute;
+    now f_equal.
+Qed.
 
 (* TODO: factor properly *)
 Lemma subst_shift :
