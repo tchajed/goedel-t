@@ -274,9 +274,6 @@ Proof.
   deex. eauto 10.
 Qed.
 
-Definition hereditary_termination_nat (e: expr [] natTy) : Prop :=
-  exists e', clos_refl_trans _ (step (t:=natTy)) e e' /\ val e'.
-
 Hint Resolve rt_step rt_refl.
 
 Ltac inv_step :=
@@ -286,10 +283,11 @@ Ltac inv_step :=
   end.
 
 Arguments step {t} e e'.
-Arguments clos_refl_trans {A} _ _ _.
+
+Infix "|->*" := (clos_refl_trans _ step) (at level 20).
 
 Lemma step_from_succ : forall e e',
-    clos_refl_trans step (succ e) e' ->
+    succ e |->* e' ->
     exists v', e' = succ v'.
 Proof.
   intros.
@@ -303,18 +301,21 @@ Qed.
 (* non-strictly positive definition *)
 (*
 Inductive HT : forall t (e: expr [] t), Prop :=
-| HT_natTy : forall e, hereditary_termination_nat e -> HT e
+| HT_natTy : forall e, terminating e -> HT e
 | HT_arrow : forall t1 t2 (e: expr [] (arrow t1 t2)), (forall (e1: expr [] t1), HT e1 ->
                                                                       HT (app e e1)) ->
                                                  HT e.
 *)
 
+Definition terminating t (e: expr [] t) : Prop := exists e', e |->* e' /\ val e'.
+
 Fixpoint hereditary_termination t : expr [] t -> Prop :=
   match t with
-  | natTy => fun e => hereditary_termination_nat e
+  | natTy => fun e => terminating e
   | arrow t1 t2 => fun e =>
+                    exists e0, e |->* abs e0 /\
                     (forall e1: expr [] t1, hereditary_termination e1 ->
-                                       hereditary_termination (app e e1))
+                                       hereditary_termination (subst e1 e0))
   end.
 
 Inductive HT : forall Gamma t (e: expr Gamma t), Prop :=
@@ -330,9 +331,11 @@ Hint Constructors HT.
 
 Hint Constructors clos_refl_trans clos_refl_trans_1n.
 
+Arguments clos_refl_trans {A} R _ _.
+
 Lemma step_respects_succ : forall e e',
-    clos_refl_trans step e e' ->
-    clos_refl_trans step (succ e) (succ e').
+    e |->* e' ->
+    succ e |->* succ e'.
 Proof.
   induction 1; intros; eauto.
 Qed.
@@ -368,7 +371,7 @@ Qed.
 Lemma hereditary_termination_succ : forall e,
     hereditary_termination e -> hereditary_termination (succ e).
 Proof.
-  simpl; unfold hereditary_termination_nat; intros.
+  simpl; unfold terminating; intros.
   deex.
   eauto.
 Qed.
@@ -380,7 +383,7 @@ Lemma hereditary_termination_succ' : forall (e: expr [] natTy),
     hereditary_termination (succ e) ->
     hereditary_termination e.
 Proof.
-  simpl; unfold hereditary_termination_nat; intros.
+  simpl; unfold terminating; intros.
   deex.
 
   apply clos_rt_rt1n in H.
@@ -485,7 +488,7 @@ Ltac simplify :=
          | [ H: step' _ _ |- _ ] => inversion H; subst; clear H;
                                   repeat inj_pair2
          | [ H: @hereditary_termination natTy _ |- _ ] =>
-           simpl in H; unfold hereditary_termination_nat in H
+           simpl in H; unfold terminating in H
          | [ |- HT _ ] => constructor; hnf
          | [ H: exists _, _ |- _ ] => deex
          | [ H: ?a = ?a |- _ ] => clear H
@@ -498,13 +501,13 @@ Lemma HT_respects_step : forall Gamma t (e e': expr Gamma t),
 Proof.
   induction e; intros; try solve [ inv_step' ].
   - inv_step'.
-    constructor; simpl; unfold hereditary_termination_nat.
+    constructor; simpl; unfold terminating.
     assert (step' e e'0); eauto.
     apply HT_destruct in H.
     apply hereditary_termination_succ' in H.
     apply HT_hereditary_termination in H.
     specialize (IHe e'0); intuition.
-    apply HT_destruct in H3; simpl in *; unfold hereditary_termination_nat in *.
+    apply HT_destruct in H3; simpl in *; unfold terminating in *.
     deex; eauto.
   - inv_step'.
     constructor; hnf.
@@ -532,9 +535,9 @@ Proof.
   generalize dependent e.
   generalize dependent e'.
   induction t; simpl; intros.
-  - unfold hereditary_termination_nat in *; deex.
+  - unfold terminating in *; deex.
     eauto.
-  - eauto.
+  - deex. eauto.
 Qed.
 
 Definition compose_substitutions Gamma Gamma' Gamma''
@@ -598,21 +601,12 @@ Proof.
   - constructor.
     simpl.
     intros.
-    specialize (IHe (substitution_shift_expr e1 gamma)).
-    assert (HT_context (substitution_shift_expr e1 gamma)).
-    {
-      hnf; intros.
-      (* computation of substitution_shift_expr depending on v *)
-      econstructor.
-      unfold substitution_shift_expr.
-      dependent destruction v; unfold eq_rec_r, eq_rec; repeat rewrite <- eq_rect_eq; eauto using HT_destruct.
-    }
-    intuition.
-    apply HT_destruct.
-    (* Need to figure out which way the application steps, I guess *)
-    eapply HT_prepend_step.
-    2: econstructor; eapply step_apE.
+    eexists.
+    split.
+    eapply rt_refl.
+    intros.
     rewrite <- subst_shift.
-    assumption.
-    (* Not actually true. *)
+    eapply HT_destruct.
+    eapply IHe.
+    admit.
 Abort.
