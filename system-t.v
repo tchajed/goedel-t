@@ -335,19 +335,6 @@ Fixpoint hereditary_termination t : expr [] t -> Prop :=
                                        hereditary_termination (subst e1 e0))
   end.
 
-Inductive HT : forall Gamma t (e: expr Gamma t), Prop :=
-| HT_hereditary_termination : forall t (e: expr [] t), hereditary_termination e -> HT e.
-
-Lemma HT_destruct : forall t (e: expr [] t), HT e ->
-                                        hereditary_termination e.
-Proof.
-  inversion 1; repeat inj_pair2; eauto.
-Qed.
-
-Hint Resolve HT_destruct.
-
-Hint Constructors HT.
-
 Hint Constructors clos_refl_trans clos_refl_trans_1n.
 
 Arguments clos_refl_trans {A} R _ _.
@@ -362,24 +349,7 @@ Qed.
 Hint Resolve step_respects_succ.
 
 Definition HT_context Gamma (gamma: substitution Gamma []) :=
-  forall t (v: variable Gamma t), HT (gamma _ v).
-
-Lemma hereditary_termination_zero : hereditary_termination zero.
-Proof.
-  hnf.
-  eauto.
-Qed.
-
-Lemma hereditary_termination_succ : forall e,
-    hereditary_termination e -> hereditary_termination (succ e).
-Proof.
-  simpl; unfold terminating; intros.
-  deex.
-  eauto.
-Qed.
-
-Hint Resolve hereditary_termination_zero.
-Hint Resolve hereditary_termination_succ.
+  forall t (v: variable Gamma t), hereditary_termination (gamma _ v).
 
 Lemma hereditary_termination_succ' : forall (e: expr [] natTy),
     hereditary_termination (succ e) ->
@@ -495,13 +465,10 @@ Qed.
 
 Ltac simplify :=
   repeat match goal with
-         | [ H: HT _ |- _ ] => inversion H; subst; clear H;
-                             repeat inj_pair2
          | [ H: step' _ _ |- _ ] => inversion H; subst; clear H;
                                   repeat inj_pair2
          | [ H: @hereditary_termination natTy _ |- _ ] =>
            simpl in H; unfold terminating in H
-         | [ |- HT _ ] => constructor; hnf
          | [ H: exists _, _ |- _ ] => deex
          | [ H: ?a = ?a |- _ ] => clear H
          end.
@@ -673,16 +640,12 @@ Proof.
 Qed.
 
 Lemma HT_abs :
-  forall Gamma t1 t2 (e1: expr Gamma (arrow t1 t2)) e2,
-    HT e1 ->
-    HT e2 ->
-    HT (app e1 e2).
+  forall t1 t2 (e1: expr [] (arrow t1 t2)) e2,
+    hereditary_termination e1 ->
+    hereditary_termination e2 ->
+    hereditary_termination (app e1 e2).
 Proof.
   intros.
-  destruct Gamma; try solve [ inversion H ].
-  eapply HT_destruct in H.
-  eapply HT_destruct in H0.
-  econstructor.
   edestruct H.
   intuition.
   generalize H0; intros Ht2.
@@ -700,38 +663,31 @@ Proof.
 Qed.
 
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
-    HT_context gamma -> HT (apply_substitution gamma e).
+    HT_context gamma -> hereditary_termination (apply_substitution gamma e).
 Proof.
   intros.
   generalize dependent gamma.
   induction e; simpl; intros.
   - eauto.
-  - auto.
+  - hnf. eauto.
   - specialize (IHe _ H).
-    apply HT_destruct in IHe.
-    eauto.
-  - constructor.
-    simpl.
+    hnf in IHe; deex.
+    hnf. eauto.
+  - simpl.
     intros.
     eexists.
     split.
     eapply rt_refl.
     intros.
     rewrite <- subst_shift.
-    eapply HT_destruct.
     eapply IHe.
     unfold HT_context in *.
     intros.
-    econstructor.
-    dependent destruction v.
-    eq_simpl; eauto.
-    eq_simpl; eapply HT_destruct; eauto.
+    dependent destruction v; eq_simpl; eauto.
   - eapply HT_abs; eauto.
-  - econstructor.
-    specialize (IHe3 gamma H).
+  - specialize (IHe3 gamma H).
     remember (apply_substitution gamma e3).
     clear e3 Heqe.
-    eapply HT_destruct in IHe3.
     generalize IHe3; intro Ht3.
     eapply hereditary_termination_terminating in Ht3.
     unfold terminating in Ht3; deex.
@@ -744,20 +700,16 @@ Proof.
     specialize (H0 _ ltac:(eauto)).
     eapply HT_prepend_step; try eapply step_iter3; eauto.
     rewrite <- subst_shift.
-    eapply HT_destruct.
     eapply IHe2.
     unfold HT_context in *; intros.
-    econstructor.
-    dependent destruction v.
-    eq_simpl; eauto.
-    eq_simpl; eapply HT_destruct; eauto.
+    dependent destruction v; eq_simpl; eauto.
     specialize (IHclos_refl_trans_1n ltac:(eauto) ltac:(eauto)).
     eapply HT_prepend_step; try eapply step_iter1; eauto.
 Qed.
 
 Theorem exprs_ht :
   forall t (e: expr [] t),
-    HT e.
+    hereditary_termination e.
 Proof.
   intros.
   replace e with (apply_substitution noop_substitution e).
@@ -773,6 +725,5 @@ Theorem exprs_terminating :
 Proof.
   intros.
   eapply hereditary_termination_terminating.
-  eapply HT_destruct.
   eapply exprs_ht.
 Qed.
