@@ -618,35 +618,33 @@ Proof.
   eapply clos_rt_rt1n in H2.
   remember (abs x).
   induction H2; subst.
-  induction H1.
-  eapply HT_prepend_step; try eapply step_apE; eauto.
-  eapply HT_prepend_step; try eapply step_ap2; eauto.
-  eapply HT_prepend_step; try eapply step_ap1; eauto.
+  induction H1; eauto using HT_prepend_step.
+  eapply HT_prepend_step; [ | eapply step_ap1 ]; eauto.
 Qed.
+
+Lemma hereditary_termination_succ : forall e,
+    hereditary_termination e ->
+    hereditary_termination (succ e).
+Proof.
+  simplify; eauto.
+Qed.
+
+Hint Resolve HT_abs.
 
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
     HT_context gamma -> hereditary_termination (apply_substitution gamma e).
 Proof.
   intros.
   generalize dependent gamma.
-  induction e; simpl; intros.
-  - eauto.
-  - hnf. eauto.
-  - specialize (IHe _ H).
-    hnf in IHe; deex.
-    hnf. eauto.
-  - simpl.
-    intros.
-    eexists.
-    split.
-    eapply rt_refl.
-    intros.
+  induction e; simplify; eauto.
+  - eapply hereditary_termination_succ; eauto.
+  - eexists.
+    intuition eauto.
     rewrite <- subst_shift.
     eapply IHe.
     unfold HT_context in *.
     intros.
-    dependent destruction v; eq_simpl; eauto.
-  - eapply HT_abs; eauto.
+    dependent destruction v; simplify; eauto.
   - specialize (IHe3 gamma H).
     remember (apply_substitution gamma e3).
     clear e3 Heqe.
@@ -664,28 +662,26 @@ Proof.
     rewrite <- subst_shift.
     eapply IHe2.
     unfold HT_context in *; intros.
-    dependent destruction v; eq_simpl; eauto.
-    specialize (IHclos_refl_trans_1n ltac:(eauto) ltac:(eauto)).
+    dependent destruction v; simplify; eauto.
     eapply HT_prepend_step; try eapply step_iter1; eauto.
 Qed.
+
+Hint Resolve substitute_noop_substitution.
 
 Theorem exprs_ht :
   forall t (e: expr [] t),
     hereditary_termination e.
 Proof.
   intros.
-  replace e with (apply_substitution noop_substitution e).
+  replace e with (apply_substitution noop_substitution e) by auto.
   eapply HT_context_subst.
   unfold HT_context; intros.
   inversion v.
-  eapply substitute_noop_substitution.
 Qed.
 
 Theorem exprs_terminating :
   forall t (e: expr [] t),
     terminating e.
 Proof.
-  intros.
-  eapply hereditary_termination_terminating.
-  eapply exprs_ht.
+  auto using hereditary_termination_terminating, exprs_ht.
 Qed.
