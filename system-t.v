@@ -82,71 +82,52 @@ Inductive expr (Gamma: mapping) : type -> Type :=
       expr Gamma t.
 Arguments zero {Gamma}.
 
-Definition var_is_last Gamma t' t (v: variable (Gamma ++ [t']) t) : variable Gamma t + {t = t'}.
-Proof.
-  induction Gamma; simpl in *.
+Definition renaming Gamma Gamma' :=
+  forall t (v: variable Gamma t), variable Gamma' t.
+
+Definition renaming_shift :
+  forall Gamma Gamma' t
+    (gamma: renaming Gamma Gamma'),
+    renaming (t :: Gamma) (t :: Gamma').
+  unfold renaming; intros.
   inversion v; subst.
-  right; auto.
-  inversion H2.
-
-  inversion v; subst.
-  left; apply var_here.
-
-  destruct (IHGamma H2).
-  left; apply var_outer; assumption.
-  right; auto.
-Defined.
-
-Definition subst_var Gamma t' (e': expr Gamma t') t (v: variable (Gamma ++ [t']) t) : expr Gamma t.
-Proof.
-  destruct (var_is_last _ _ v).
-  exact (var v0).
-  subst.
-  apply e'.
-Defined.
-
-Lemma variable_weaken_insertion : forall Gamma Gamma' t a,
-    variable (Gamma ++ Gamma') t ->
-    variable (Gamma ++ a :: Gamma') t.
-Proof.
-  intros.
-  generalize dependent Gamma'.
-  induction Gamma; simpl; intros.
-  exact (var_outer _ H).
-  inversion H; subst.
   apply var_here.
   apply var_outer.
-  apply IHGamma; assumption.
+  exact (gamma _ H2).
 Defined.
 
-Definition expr_weaken Gamma Gamma' t t' (e: expr (Gamma ++ Gamma') t) :
-  expr (Gamma ++ t' :: Gamma') t.
-Proof.
-  remember (Gamma ++ Gamma').
-  revert Gamma Heql.
-  induction e; intros; subst.
-  + apply var; apply variable_weaken_insertion; assumption.
-  + apply zero.
+Definition apply_renaming Gamma Gamma' (gamma: renaming Gamma Gamma')
+           t (e: expr Gamma t) : expr Gamma' t.
+  intros.
+  generalize dependent Gamma'.
+  generalize dependent Gamma.
+  induction 1; intros; subst.
+  + exact (var (gamma _ v)).
+  + exact zero.
   + apply succ.
     now apply IHe.
-  + apply abs.
-    specialize (IHe (t1 :: Gamma0)).
-    rewrite <- List.app_comm_cons in *.
-    now apply IHe.
-  + now eapply app; [apply IHe1 | apply IHe2 ].
-  + apply iter.
+  + eapply abs.
+    eapply IHe; trivial.
+    now apply renaming_shift.
+  + now eapply app; [ apply IHe1 | apply IHe2 ].
+  + eapply iter.
     now apply IHe1.
-    now apply (IHe2 (t :: Gamma0)).
+    apply IHe2; trivial.
+    now apply renaming_shift.
     now apply IHe3.
 Defined.
 
-Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t :=
-  expr_weaken nil Gamma t' e.
+Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t.
+  eapply apply_renaming; eauto.
+  intros t0 v.
+  exact (var_outer _ v).
+Defined.
 
 Definition substitution Gamma Gamma' :=
   forall t (v: variable Gamma t), expr Gamma' t.
 
-Definition substitution_shift : forall Gamma Gamma' t
+Definition substitution_shift :
+  forall Gamma Gamma' t
     (gamma: substitution Gamma Gamma'),
     substitution (t :: Gamma) (t :: Gamma').
   unfold substitution; intros.
@@ -187,6 +168,7 @@ Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
     now apply substitution_shift.
     now apply IHe3.
 Defined.
+
 
 Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
   intros Gamma t v.
@@ -485,39 +467,6 @@ Definition compose_substitutions Gamma Gamma' Gamma''
            (s1: substitution Gamma Gamma')
            (s2: substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
   fun t v => apply_substitution s2 (s1 t v).
-
-Lemma expr_weaken_succ_reduce : forall Gamma Gamma' t (e: expr _ natTy),
-    expr_weaken Gamma Gamma' t (succ e) =
-    succ (expr_weaken Gamma Gamma' t e).
-Proof.
-  eauto.
-Qed.
-
-Lemma expr_weaken_abs_reduce : forall Gamma' t t1 t2 (e: expr (t1 :: Gamma') t2),
-    expr_weaken [] Gamma' t (abs e) =
-    abs (expr_weaken [t1] _ t e).
-Proof.
-  unfold expr_weaken; simplify; eauto.
-Qed.
-
-Lemma expr_weaken_app_reduce : forall Gamma Gamma' t t1 t2 (e1: expr _ (arrow t1 t2)) e2,
-    expr_weaken Gamma Gamma' t (app e1 e2) =
-    app (expr_weaken Gamma Gamma' t e1) (expr_weaken Gamma Gamma' t e2).
-Proof.
-  eauto.
-Qed.
-
-Lemma expr_weaken_iter_reduce : forall Gamma' t t'
-                                  (e1: expr _ t')
-                                  (e2: expr (t' :: Gamma') t')
-                                  (n: expr _ natTy),
-    expr_weaken [] Gamma' t (iter e1 e2 n) =
-    iter (expr_weaken [] Gamma' t e1)
-         (expr_weaken [t'] Gamma' t e2)
-         (expr_weaken [] Gamma' t n).
-Proof.
-  eauto.
-Qed.
 
 Lemma expr_shift_substitution : forall t Gamma' t' (e: expr Gamma' t')
                                   Gamma Gamma''
