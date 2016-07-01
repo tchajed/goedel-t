@@ -619,5 +619,11 @@ Proof.
     rewrite <- subst_shift.
     eapply HT_destruct.
     eapply IHe.
-    admit.
+    unfold HT_context in *.
+    intros.
+    econstructor.
+    dependent destruction v.
+    eq_simpl; eauto.
+    eq_simpl; eapply HT_destruct; eauto.
+  - econstructor.
 Abort.
