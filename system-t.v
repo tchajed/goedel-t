@@ -403,7 +403,6 @@ Theorem deterministic_clos_refl_R : forall A (R: A -> A -> Prop),
       clos_refl_trans R a' a''.
 Proof.
   intros.
-  Search clos_refl_trans.
   apply clos_rt_rt1n in H0.
   apply clos_rt1n_rt.
 
