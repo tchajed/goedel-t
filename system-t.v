@@ -443,6 +443,21 @@ Ltac cleanup :=
   | [ H: ?a = ?a |- _ ] => clear H
   end.
 
+Lemma val_no_step : forall t (e e': expr [] t),
+    val e ->
+    ~step e e'.
+Proof.
+  induction 1; intros; subst; repeat inj_pair2;
+    inversion 1; subst; repeat inj_pair2;
+      intuition eauto.
+Qed.
+
+Definition val_dec : forall t (e: expr [] t), {val e} + {~val e}.
+Proof.
+  induction e; try solve [ right; inversion 1]; intuition eauto.
+  right; inversion 1; intuition.
+Defined.
+
 Theorem step_deterministic : forall t, @deterministic (expr [] t) step.
 Proof.
   unfold deterministic; intros.
