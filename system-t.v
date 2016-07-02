@@ -87,7 +87,7 @@ Definition apply_renaming Gamma Gamma' (gamma: renaming Gamma Gamma')
     now apply IHe3.
 Defined.
 
-Definition var_shift Gamma t' t (v: variable Gamma t) := var_outer t' v.
+Definition var_shift Gamma t' : renaming _ _ := fun t (v: variable Gamma t) => var_outer t' v.
 
 Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t.
   eapply apply_renaming; eauto.
