@@ -530,7 +530,32 @@ Proof.
     now f_equal.
 Qed.
 
-(* TODO: factor properly *)
+Lemma compose_rename_unshift : forall Gamma t t' (e': expr Gamma t'),
+    compose_substitutions (rename_substitution
+                             (renaming_shift t (var_shift t')))
+                          (substitution_shift
+                             t (substitution_shift_expr e' noop_substitution)) =
+    noop_substitution.
+Proof.
+  intros.
+  extensionality t0; extensionality v.
+  dependent destruction v; simplify; eauto.
+Qed.
+
+Lemma shift_unshift_noop : forall Gamma t (e: expr Gamma t)
+                             t' (e': expr Gamma t'),
+    apply_substitution (substitution_shift_expr e' noop_substitution)
+                       (expr_shift t' e) = e.
+Proof.
+  induction e; simplify; f_equal;
+    eauto;
+    rewrite ?apply_renaming_as_substitution,
+    <- ?apply_compose_substitutions,
+    ?compose_rename_unshift,
+    ?substitute_noop_substitution;
+    auto.
+Qed.
+
 Lemma subst_shift :
   forall Gamma (gamma: substitution Gamma []) t1 t2 (e: expr (t1 :: Gamma) t2) e2,
     apply_substitution (substitution_shift_expr e2 gamma) e =
@@ -542,36 +567,9 @@ Proof.
   f_equal.
   unfold compose_substitutions.
   extensionality t; extensionality v.
-  dependent destruction v; simplify; eauto.
-  remember (gamma t v).
-  clear.
-  generalize dependent (nil : mapping).
-
-  intros Gamma e' e.
-  induction e; simplify; f_equal; eauto.
-  rewrite apply_renaming_as_substitution.
-  rewrite <- apply_compose_substitutions.
-  match goal with
-  | [ |- context[apply_substitution ?s] ] =>
-    assert (s = noop_substitution)
-  end.
-  extensionality t; extensionality v.
-  unfold noop_substitution, compose_substitutions.
-  dependent destruction v; simplify; eauto.
-  rewrite H.
-  rewrite substitute_noop_substitution; auto.
-
-  rewrite apply_renaming_as_substitution.
-  rewrite <- apply_compose_substitutions.
-  match goal with
-  | [ |- context[apply_substitution ?s] ] =>
-    assert (s = noop_substitution)
-  end.
-  extensionality t'; extensionality v.
-  unfold noop_substitution, compose_substitutions.
-  dependent destruction v; simplify; eauto.
-  rewrite H.
-  rewrite substitute_noop_substitution; auto.
+  dependent destruction v; simplify;
+    rewrite ?shift_unshift_noop;
+    eauto.
 Qed.
 
 Theorem hereditary_termination_terminating :
