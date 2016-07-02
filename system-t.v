@@ -549,18 +549,34 @@ Proof.
   dependent destruction v; simplify; eauto.
   remember (gamma t v).
   clear.
-  generalize dependent (@nil type).
-  intros.
-  remember (expr_shift t1 e0).
-  revert Heqe.
-  induction e0; intros; subst; eauto; eq_simpl.
-  - erewrite <- IHe0; eauto.
-  - (* TODO: don't know how to do this case. *)
-    admit.
-  - erewrite <- IHe0_1, <- IHe0_2 by eauto; auto.
-  - erewrite <- IHe0_1, <- IHe0_3 by eauto; auto.
-    admit.
-Admitted.
+  generalize dependent (nil : mapping).
+
+  intros Gamma e' e.
+  induction e; simplify; f_equal; eauto.
+  rewrite apply_renaming_as_substitution.
+  rewrite <- apply_compose_substitutions.
+  match goal with
+  | [ |- context[apply_substitution ?s] ] =>
+    assert (s = noop_substitution)
+  end.
+  extensionality t; extensionality v.
+  unfold noop_substitution, compose_substitutions.
+  dependent destruction v; simplify; eauto.
+  rewrite H.
+  rewrite substitute_noop_substitution; auto.
+
+  rewrite apply_renaming_as_substitution.
+  rewrite <- apply_compose_substitutions.
+  match goal with
+  | [ |- context[apply_substitution ?s] ] =>
+    assert (s = noop_substitution)
+  end.
+  extensionality t'; extensionality v.
+  unfold noop_substitution, compose_substitutions.
+  dependent destruction v; simplify; eauto.
+  rewrite H.
+  rewrite substitute_noop_substitution; auto.
+Qed.
 
 Theorem hereditary_termination_terminating :
   forall t (e: expr [] t),
