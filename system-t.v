@@ -283,7 +283,7 @@ Ltac inv_step :=
 
 Arguments step {t} e e'.
 
-Infix "|->*" := (clos_refl_trans _ step) (at level 20).
+Infix "|->*" := (clos_refl_trans_1n _ step) (at level 20).
 
 Lemma step_from_succ : forall e e',
     succ e |->* e' ->
@@ -294,7 +294,6 @@ Proof.
   generalize dependent e.
   induction H; intros; subst; eauto.
   inv_step; eauto.
-  edestruct IHclos_refl_trans1; eauto.
 Qed.
 
 (* non-strictly positive definition *)
@@ -317,9 +316,9 @@ Fixpoint hereditary_termination t : expr [] t -> Prop :=
                                        hereditary_termination (subst e1 e0))
   end.
 
-Hint Constructors clos_refl_trans clos_refl_trans_1n.
+Hint Constructors clos_refl_trans_1n.
 
-Arguments clos_refl_trans {A} R _ _.
+Arguments clos_refl_trans_1n {A} R _ _.
 
 Lemma step_respects_succ : forall e e',
     e |->* e' ->
@@ -340,7 +339,6 @@ Proof.
   simpl; unfold terminating; intros.
   deex.
 
-  apply clos_rt_rt1n in H.
   remember (succ e).
   generalize dependent e.
   induction H; intros; subst.
@@ -385,14 +383,12 @@ Definition deterministic A (R: A -> A -> Prop) :=
 Theorem deterministic_clos_refl_R : forall A (R: A -> A -> Prop),
     deterministic R ->
     forall a a' a'',
-      clos_refl_trans R a a'' ->
+      clos_refl_trans_1n R a a'' ->
       (forall a''', ~R a'' a''') ->
       R a a' ->
-      clos_refl_trans R a' a''.
+      clos_refl_trans_1n R a' a''.
 Proof.
   intros.
-  apply clos_rt_rt1n in H0.
-  apply clos_rt1n_rt.
 
   induction H0.
   apply H1 in H2; intuition eauto.
@@ -433,9 +429,9 @@ Qed.
 
 Lemma step_clos_refl_R : forall t (e e' e'': expr [] t),
     val e'' ->
-    clos_refl_trans step e e'' ->
+    clos_refl_trans_1n step e e'' ->
     step e e' ->
-    clos_refl_trans step e' e''.
+    clos_refl_trans_1n step e' e''.
 Proof.
   eauto using step_deterministic, val_no_step, deterministic_clos_refl_R.
 Qed.
@@ -563,8 +559,6 @@ Proof.
   apply hereditary_termination_terminating in H0.
   destruct H0.
   intuition.
-  eapply clos_rt_rt1n in H1.
-  eapply clos_rt_rt1n in H2.
   remember (abs x).
   induction H2; subst.
   induction H1; eauto using HT_prepend_step.
@@ -600,7 +594,6 @@ Proof.
     generalize IHe3; intro Ht3.
     eapply hereditary_termination_terminating in Ht3.
     unfold terminating in Ht3; deex.
-    eapply clos_rt_rt1n in H0.
     induction H0.
     dependent induction H1.
     eapply HT_prepend_step; try eapply step_iter2; eauto.
