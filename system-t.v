@@ -117,10 +117,11 @@ Definition apply_renaming Gamma Gamma' (gamma: renaming Gamma Gamma')
     now apply IHe3.
 Defined.
 
+Definition var_shift Gamma t' t (v: variable Gamma t) := var_outer t' v.
+
 Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t.
   eapply apply_renaming; eauto.
-  intros t0 v.
-  exact (var_outer _ v).
+  exact (var_shift _).
 Defined.
 
 Definition substitution Gamma Gamma' :=
@@ -464,35 +465,58 @@ Definition compose_substitutions Gamma Gamma' Gamma''
            (s2: substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
   fun t v => apply_substitution s2 (s1 t v).
 
-Lemma expr_shift_substitution : forall t Gamma' t' (e: expr Gamma' t')
-                                  Gamma Gamma''
-                                  (s1: substitution Gamma Gamma')
-                                  (s2: substitution Gamma' Gamma''),
-    expr_shift t (apply_substitution s2 e) =
-    apply_substitution (substitution_shift s2) (expr_shift t e).
+Definition rename_substitution Gamma Gamma' (r: renaming Gamma Gamma') : substitution Gamma Gamma' :=
+  fun t e => var (r _ e).
+
+Lemma rename_substitution_shift_commute : forall Gamma Gamma' t (r: renaming Gamma Gamma'),
+    rename_substitution (renaming_shift (t:=t) r) =
+    substitution_shift (rename_substitution r).
 Proof.
-  unfold expr_shift.
-  dependent induction e; simplify; eauto;
-    rewrite ?expr_weaken_succ_reduce,
-            ?expr_weaken_abs_reduce,
-            ?expr_weaken_app_reduce,
-             ?expr_weaken_iter_reduce.
-  - f_equal.
-    erewrite IHe; now eauto.
-  - f_equal; eauto.
-    admit.
-  - f_equal;
-      erewrite ?IHe1, ?IHe2; now eauto.
-  - f_equal;
-      erewrite ?IHe1, ?IHe3; eauto.
-    admit.
+  intros; extensionality t'; extensionality e.
+  dependent induction e; simplify; eauto.
+Qed.
+
+Theorem apply_renaming_as_substitution : forall Gamma Gamma' (r: renaming Gamma Gamma'),
+    apply_renaming r = apply_substitution (rename_substitution r).
+Proof.
+  intros.
+  extensionality t; extensionality e.
+  generalize dependent Gamma'.
+  induction e; simplify; f_equal; eauto.
+  erewrite ?IHe,
+  ?rename_substitution_shift_commute by eauto;
+    auto.
+  erewrite ?IHe1, ?IHe2, ?IHe3,
+  ?rename_substitution_shift_commute by eauto;
+    eauto.
+Qed.
+
+Arguments renaming_shift {Gamma Gamma'} t gamma [t0] v.
+Arguments substitution_shift {Gamma Gamma'} t gamma [t0] v.
+
+Lemma expr_shift_substitution : forall t Gamma Gamma'
+                                  t' (e: expr Gamma t')
+                                  (s: substitution Gamma Gamma'),
+    expr_shift t (apply_substitution s e) =
+    apply_substitution (substitution_shift t s) (expr_shift t e).
+Proof.
+  unfold expr_shift; intros.
+
+  rewrite ?apply_renaming_as_substitution.
+
+  generalize dependent Gamma'.
+  dependent induction e; simplify;
+    f_equal; eauto.
+
+  - rewrite <- apply_renaming_as_substitution; eauto.
+  -
 Admitted.
 
 Lemma substitution_shift_compose_commute : forall Gamma Gamma' Gamma'' t
                                              (s1: substitution Gamma Gamma')
                                              (s2: substitution Gamma' Gamma''),
-    substitution_shift (t:=t) (compose_substitutions s1 s2) =
-    compose_substitutions (substitution_shift s1) (substitution_shift s2).
+    substitution_shift t (compose_substitutions s1 s2) =
+    compose_substitutions (substitution_shift t s1) (substitution_shift t s2).
 Proof.
   unfold compose_substitutions.
   intros; extensionality t'; extensionality v.
@@ -514,7 +538,7 @@ Qed.
 Lemma subst_shift :
   forall Gamma (gamma: substitution Gamma []) t1 t2 (e: expr (t1 :: Gamma) t2) e2,
     apply_substitution (substitution_shift_expr e2 gamma) e =
-    subst e2 (apply_substitution (substitution_shift gamma) e).
+    subst e2 (apply_substitution (substitution_shift t1 gamma) e).
 Proof.
   unfold subst.
   intros.
