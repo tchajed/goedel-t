@@ -170,6 +170,38 @@ Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
     now apply IHe3.
 Defined.
 
+Definition compose_ren_ren Gamma Gamma' Gamma''
+           (r: renaming Gamma Gamma')
+           (r': renaming Gamma' Gamma'') : renaming Gamma Gamma'' :=
+  fun t v => r' _ (r t v).
+
+Definition compose_ren_sub Gamma Gamma' Gamma''
+           (r: renaming Gamma Gamma')
+           (s: substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
+  fun t v => s _ (r t v).
+
+Definition compose_sub_ren Gamma Gamma' Gamma''
+           (s: substitution Gamma Gamma')
+           (r: renaming Gamma' Gamma'') : substitution Gamma Gamma'' :=
+  fun t v => apply_renaming r (s t v).
+
+Definition compose_substitutions Gamma Gamma' Gamma''
+           (s: substitution Gamma Gamma')
+           (s': substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
+  fun t v => apply_substitution s' (s t v).
+
+Ltac var_extensionality :=
+  match goal with
+    | [ |- ?X = ?Y ] =>
+      let t := fresh "t" in extensionality t;
+        let v := fresh "v" in extensionality v;
+          dependent destruction v; auto
+  end.
+
+Ltac do_rewrites E :=
+  intros; simpl; try rewrite E;
+  repeat match goal with [H: context[_=_] |- _] => rewrite H end;
+  auto.
 
 Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
   intros Gamma t v.
@@ -190,6 +222,85 @@ Lemma substitute_noop_substitution :
     apply_substitution noop_substitution e = e.
 Proof.
   induction e; eauto; simpl; try rewrite noop_substitution_shift; congruence.
+Qed.
+
+Lemma shift_ren_ren :
+  forall Gamma Gamma' Gamma'' t
+    (r: renaming Gamma Gamma')
+    (r': renaming Gamma' Gamma''),
+    renaming_shift (t:=t) (compose_ren_ren r r') =
+    compose_ren_ren (renaming_shift r) (renaming_shift r').
+Proof.
+  intros. var_extensionality.
+Qed.
+
+Lemma apply_ren_ren :
+  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+    (r: renaming Gamma Gamma')
+    (r': renaming Gamma' Gamma'') ,
+    apply_renaming (compose_ren_ren r r') e = apply_renaming r' (apply_renaming r e).
+Proof.
+  induction e; do_rewrites shift_ren_ren.
+Qed.
+
+Lemma shift_ren_sub :
+  forall Gamma Gamma' Gamma'' t
+    (r: renaming Gamma Gamma')
+    (s: substitution Gamma' Gamma''),
+    substitution_shift (t:=t) (compose_ren_sub r s) =
+    compose_ren_sub (renaming_shift r) (substitution_shift s).
+Proof.
+  intros. var_extensionality.
+Qed.
+
+Lemma apply_ren_sub :
+  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+    (r: renaming Gamma Gamma')
+    (s: substitution Gamma' Gamma'') ,
+    apply_substitution (compose_ren_sub r s) e = apply_substitution s (apply_renaming r e).
+Proof.
+  induction e; do_rewrites shift_ren_sub.
+Qed.
+
+Lemma shift_sub_ren :
+  forall Gamma Gamma' Gamma'' t
+    (s: substitution Gamma Gamma')
+    (r: renaming Gamma' Gamma''),
+    substitution_shift (t:=t) (compose_sub_ren s r) =
+    compose_sub_ren (substitution_shift s) (renaming_shift r).
+Proof.
+  intros. var_extensionality. unfold compose_sub_ren. eq_simpl.
+  unfold expr_shift. rewrite <- ?apply_ren_ren. auto.
+Qed.
+
+Lemma apply_sub_ren :
+  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+    (s: substitution Gamma Gamma')
+    (r: renaming Gamma' Gamma''),
+    apply_substitution (compose_sub_ren s r) e = apply_renaming r (apply_substitution s e).
+Proof.
+  induction e; do_rewrites shift_sub_ren.
+Qed.
+
+Lemma shift_sub_sub :
+  forall Gamma Gamma' Gamma'' t
+    (s: substitution Gamma Gamma')
+    (s': substitution Gamma' Gamma''),
+    substitution_shift (t:=t) (compose_substitutions s s') =
+    compose_substitutions (substitution_shift s) (substitution_shift s').
+Proof.
+  intros. var_extensionality. eq_simpl. unfold compose_substitutions. eq_simpl.
+  unfold expr_shift. rewrite <- apply_sub_ren. rewrite <- apply_ren_sub. auto.
+Qed.
+
+Lemma apply_sub_sub :
+  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+    (s: substitution Gamma Gamma')
+    (s': substitution Gamma' Gamma''),
+    apply_substitution (compose_substitutions s s') e =
+    apply_substitution s' (apply_substitution s e).
+Proof.
+  induction e; do_rewrites shift_sub_sub.
 Qed.
 
 Definition subst t' (e': expr [] t') t (e: expr [t'] t) : expr [] t :=
@@ -456,11 +567,6 @@ Proof.
   induction t; simplify; eauto.
 Qed.
 
-Definition compose_substitutions Gamma Gamma' Gamma''
-           (s1: substitution Gamma Gamma')
-           (s2: substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
-  fun t v => apply_substitution s2 (s1 t v).
-
 Definition rename_substitution Gamma Gamma' (r: renaming Gamma Gamma') : substitution Gamma Gamma' :=
   fun t e => var (r _ e).
 
@@ -584,7 +690,7 @@ Lemma subst_shift :
 Proof.
   unfold subst.
   intros.
-  rewrite <- apply_compose_substitutions.
+  rewrite <- apply_sub_sub.
   f_equal.
   unfold compose_substitutions.
   extensionality t; extensionality v.
