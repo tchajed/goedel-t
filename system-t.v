@@ -250,9 +250,9 @@ Lemma step_step' : forall t (e e': expr [] t),
   intros.
   inversion H; repeat inj_pair2; auto.
 Qed.
-Hint Resolve step_step'.
 
-Hint Constructors step step' val.
+Hint Resolve step'_step step_step'.
+Hint Constructors step val.
 
 Theorem progress : forall t (e: expr [] t),
     val e \/
@@ -274,8 +274,6 @@ Proof.
   deex. eauto 10.
 Qed.
 
-Hint Resolve rt_step rt_refl.
-
 Ltac inv_step :=
   match goal with
   | [ H: step _ _ |- _ ] =>
@@ -283,8 +281,10 @@ Ltac inv_step :=
   end.
 
 Arguments step {t} e e'.
-
-Infix "|->*" := (clos_refl_trans_1n _ step) (at level 20).
+Hint Constructors clos_refl_trans_1n.
+Arguments clos_refl_trans_1n {A} R _ _.
+Infix "|->" := (step) (at level 20).
+Infix "|->*" := (clos_refl_trans_1n step) (at level 20).
 
 Lemma step_from_succ : forall e e',
     succ e |->* e' ->
@@ -316,10 +316,6 @@ Fixpoint hereditary_termination t : expr [] t -> Prop :=
                     (forall e1: expr [] t1, hereditary_termination e1 ->
                                        hereditary_termination (subst e1 e0))
   end.
-
-Hint Constructors clos_refl_trans_1n.
-
-Arguments clos_refl_trans_1n {A} R _ _.
 
 Lemma step_respects_succ : forall e e',
     e |->* e' ->
@@ -399,7 +395,7 @@ Qed.
 
 Lemma val_no_step : forall t (e e': expr [] t),
     val e ->
-    ~step e e'.
+    ~e |-> e'.
 Proof.
   induction 1; simplify;
     inversion 1; simplify; intuition eauto.
@@ -430,9 +426,9 @@ Qed.
 
 Lemma step_clos_refl_R : forall t (e e' e'': expr [] t),
     val e'' ->
-    clos_refl_trans_1n step e e'' ->
-    step e e' ->
-    clos_refl_trans_1n step e' e''.
+    e |->* e'' ->
+    e |-> e' ->
+    e' |->* e''.
 Proof.
   eauto using step_deterministic, val_no_step, deterministic_clos_refl_R.
 Qed.
@@ -441,7 +437,7 @@ Hint Resolve step_clos_refl_R.
 
 Lemma HT_respects_step : forall t (e e': expr [] t),
     hereditary_termination e ->
-    step e e' ->
+    e |-> e' ->
     hereditary_termination e'.
 Proof.
   induction t; simplify; eauto.
@@ -451,7 +447,7 @@ Hint Resolve HT_respects_step.
 
 Lemma HT_prepend_step : forall t (e e': expr [] t),
     hereditary_termination e' ->
-    step e e' ->
+    e |-> e' ->
     hereditary_termination e.
 Proof.
   simplify.
