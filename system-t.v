@@ -596,67 +596,6 @@ Qed.
 Arguments renaming_shift {Gamma Gamma'} t gamma [t0] v.
 Arguments substitution_shift {Gamma Gamma'} t gamma [t0] v.
 
-Lemma apply_rename_shift_commute : forall Gamma t1 t2 (e: expr (t1 :: Gamma) t2)
-                                     Gamma' (s: substitution Gamma Gamma') t,
-    apply_substitution (substitution_shift t1 (rename_substitution (var_shift t)))
-                       (apply_substitution (substitution_shift t1 s) e) =
-    apply_substitution (substitution_shift t1 (substitution_shift t s))
-                       (apply_substitution (substitution_shift t1 (rename_substitution (var_shift t))) e).
-Proof.
-  unfold rename_substitution.
-  intros.
-  generalize dependent Gamma'.
-  dependent induction e; simplify; f_equal; eauto.
-  - admit.
-  - specialize (IHe (t1::Gamma) t0 e); intuition.
-    admit.
-  - specialize (IHe1 Gamma t1 e1);
-      specialize (IHe2 (t1::Gamma) t e2);
-      specialize (IHe3 Gamma t1 e3);
-      intuition.
-    admit.
-Admitted.
-
-Lemma expr_shift_substitution : forall t Gamma Gamma'
-                                  t' (e: expr Gamma t')
-                                  (s: substitution Gamma Gamma'),
-    expr_shift t (apply_substitution s e) =
-    apply_substitution (substitution_shift t s) (expr_shift t e).
-Proof.
-  unfold expr_shift; intros.
-
-  rewrite ?apply_renaming_as_substitution.
-
-  generalize dependent Gamma'.
-  dependent induction e; simplify;
-    f_equal; eauto;
-      rewrite <- ?apply_renaming_as_substitution,
-      ?apply_rename_shift_commute;
-      eauto.
-Qed.
-
-Lemma substitution_shift_compose_commute : forall Gamma Gamma' Gamma'' t
-                                             (s1: substitution Gamma Gamma')
-                                             (s2: substitution Gamma' Gamma''),
-    substitution_shift t (compose_substitutions s1 s2) =
-    compose_substitutions (substitution_shift t s1) (substitution_shift t s2).
-Proof.
-  unfold compose_substitutions.
-  intros; extensionality t'; extensionality v.
-  dependent destruction v; simplify; eauto using expr_shift_substitution.
-Qed.
-
-Theorem apply_compose_substitutions :
-  forall Gamma t (e: expr Gamma t)
-    Gamma' Gamma'' (s1: substitution Gamma Gamma') (s2: substitution Gamma' Gamma''),
-    apply_substitution (compose_substitutions s1 s2) e =
-    apply_substitution s2 (apply_substitution s1 e).
-Proof.
-  induction e; simplify; eauto;
-    rewrite ?substitution_shift_compose_commute;
-    now f_equal.
-Qed.
-
 Lemma compose_rename_unshift : forall Gamma t t' (e': expr Gamma t'),
     compose_substitutions (rename_substitution
                              (renaming_shift t (var_shift t')))
@@ -677,7 +616,7 @@ Proof.
   induction e; simplify; f_equal;
     eauto;
     rewrite ?apply_renaming_as_substitution,
-    <- ?apply_compose_substitutions,
+    <- ?apply_sub_sub,
     ?compose_rename_unshift,
     ?substitute_noop_substitution;
     auto.
