@@ -3,7 +3,7 @@ Require Import Relations.
 Import List.ListNotations.
 Open Scope list.
 Require Import Equality.
-Import EqdepTheory.
+Import Eqdep.
 Require Import FunctionalExtensionality.
 
 Set Implicit Arguments.
@@ -35,35 +35,6 @@ Definition variable_add Gamma t (v: variable Gamma t) t' :
   variable (t' :: Gamma) t :=
   var_outer t' v.
 
-Fixpoint var_index Gamma t (v: variable Gamma t) : nat :=
-  match v with
-  | var_here _ _ => 0
-  | var_outer _ v => S (var_index v)
-  end.
-
-Definition var_index_eq Gamma t1 t2 (v1: variable Gamma t1) (v2: variable Gamma t2) :
-  {var_index v1 = var_index v2} + {var_index v1 <> var_index v2}.
-Proof.
-  decide equality.
-Qed.
-
-Definition var_indices_eq : forall Gamma t1 t2 (v1: variable Gamma t1) (v2: variable Gamma t2),
-    var_index v1 = var_index v2 ->
-    { H : t1 = t2 & eq_rect _ (fun t => variable Gamma t) v1 _ H = v2 }.
-Proof.
-  intros.
-  dependent induction Gamma.
-  inversion v1.
-  dependent induction v1;
-    dependent induction v2;
-    simpl in *;
-    try congruence.
-  exists eq_refl; cbn; auto.
-  inversion H.
-  destruct (IHGamma _ _ _ _ H1); subst.
-  exists eq_refl; cbn; auto.
-Defined.
-
 Inductive expr (Gamma: mapping) : type -> Type :=
 | var : forall t (v: variable Gamma t), expr Gamma t
 | zero : expr Gamma natTy
@@ -85,16 +56,15 @@ Arguments zero {Gamma}.
 Definition renaming Gamma Gamma' :=
   forall t (v: variable Gamma t), variable Gamma' t.
 
-Definition renaming_shift :
-  forall Gamma Gamma' t
-    (gamma: renaming Gamma Gamma'),
-    renaming (t :: Gamma) (t :: Gamma').
-  unfold renaming; intros.
-  inversion v; subst.
-  apply var_here.
-  apply var_outer.
-  exact (gamma _ H2).
-Defined.
+Program Definition renaming_shift
+        Gamma Gamma' t
+        (gamma: renaming Gamma Gamma') :
+  renaming (t :: Gamma) (t :: Gamma') :=
+  fun t' v =>
+    match v with
+      | var_here _ _ => var_here _ _
+      | var_outer _ v' => var_outer _ (gamma _ v')
+    end.
 
 Definition apply_renaming Gamma Gamma' (gamma: renaming Gamma Gamma')
            t (e: expr Gamma t) : expr Gamma' t.
@@ -127,27 +97,25 @@ Defined.
 Definition substitution Gamma Gamma' :=
   forall t (v: variable Gamma t), expr Gamma' t.
 
-Definition substitution_shift :
-  forall Gamma Gamma' t
-    (gamma: substitution Gamma Gamma'),
-    substitution (t :: Gamma) (t :: Gamma').
-  unfold substitution; intros.
-  inversion v; subst.
-  apply var.
-  apply var_here.
-  pose proof (gamma _ H2).
-  now apply expr_shift.
-Defined.
+Program Definition substitution_shift
+        Gamma Gamma' t
+        (gamma: substitution Gamma Gamma') :
+  substitution (t :: Gamma) (t :: Gamma') := fun t' v =>
+  match v with
+    | var_here _ _ => var (var_here _ _)
+    | var_outer _ v' => expr_shift t (gamma _ v')
+  end.
 
-Definition substitution_shift_expr : forall Gamma Gamma' t
-                                       (e': expr Gamma' t)
-                                       (gamma: substitution Gamma Gamma'),
-    substitution (t :: Gamma) Gamma'.
-  unfold substitution; intros.
-  inversion v; subst.
-  exact e'.
-  exact (gamma _ H2).
-Defined.
+Program Definition substitution_shift_expr
+        Gamma Gamma' t
+        (e': expr Gamma' t)
+        (gamma: substitution Gamma Gamma') :
+  substitution (t :: Gamma) Gamma' :=
+  fun t' (v: variable (t :: Gamma) t') =>
+    match v with
+      | var_here _ _ => e'
+      | var_outer _ v' => gamma _ v'
+    end.
 
 Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
            t (e: expr Gamma t) : expr Gamma' t.
@@ -211,10 +179,7 @@ Defined.
 Ltac eq_simpl := simpl; unfold eq_rec_r, eq_rec; rewrite <- ?eq_rect_eq; simpl.
 
 Lemma noop_substitution_shift : forall {Gamma} t, substitution_shift (t := t) (noop_substitution (Gamma := Gamma)) = noop_substitution.
-  intros.
-  extensionality t0.
-  extensionality v.
-  dependent destruction v; eq_simpl; reflexivity.
+  intros. var_extensionality.
 Qed.
 
 Lemma substitute_noop_substitution :
