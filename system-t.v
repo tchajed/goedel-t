@@ -176,8 +176,6 @@ Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
   eapply var; eauto.
 Defined.
 
-Ltac eq_simpl := simpl; unfold eq_rec_r, eq_rec; rewrite <- ?eq_rect_eq; simpl.
-
 Lemma noop_substitution_shift : forall {Gamma} t, substitution_shift (t := t) (noop_substitution (Gamma := Gamma)) = noop_substitution.
   intros. var_extensionality.
 Qed.
@@ -234,7 +232,7 @@ Lemma shift_sub_ren :
     substitution_shift (t:=t) (compose_sub_ren s r) =
     compose_sub_ren (substitution_shift s) (renaming_shift r).
 Proof.
-  intros. var_extensionality. unfold compose_sub_ren. eq_simpl.
+  intros. var_extensionality. unfold compose_sub_ren. simpl.
   unfold expr_shift. rewrite <- ?apply_ren_ren. auto.
 Qed.
 
@@ -254,7 +252,7 @@ Lemma shift_sub_sub :
     substitution_shift (t:=t) (compose_substitutions s s') =
     compose_substitutions (substitution_shift s) (substitution_shift s').
 Proof.
-  intros. var_extensionality. eq_simpl. unfold compose_substitutions. eq_simpl.
+  intros. var_extensionality. simpl. unfold compose_substitutions. simpl.
   unfold expr_shift. rewrite <- apply_sub_ren. rewrite <- apply_ren_sub. auto.
 Qed.
 
@@ -436,7 +434,7 @@ Ltac simplify :=
            simpl in H
          | [ H: @hereditary_termination (arrow _ _) _ |- _ ] =>
            simpl in H
-         | _ => progress eq_simpl
+         | _ => progress simpl
          | _ => progress unfold terminating in *
          end.
 
