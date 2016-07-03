@@ -166,10 +166,8 @@ Ltac subst_ext :=
              dependent destruction v;
              eauto) in
   match goal with
-  | [ |- _ = _ <: (renaming _ _) ] =>
-    ext
-  | [ |- _ = _ <: (substitution _ _) ] =>
-    ext
+  | [ |- _ = _ :> (renaming _ _) ] => ext
+  | [ |- _ = _ :> (substitution _ _) ] => ext
   end.
 
 Ltac do_rewrites E :=
