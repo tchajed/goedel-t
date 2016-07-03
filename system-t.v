@@ -297,11 +297,6 @@ Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
                  val n ->
                  step (iter ez e (succ n)) (subst (iter ez e n) e).
 
-Inductive step' : forall t Gamma, expr Gamma t -> expr Gamma t -> Prop :=
-| step'_step : forall t (e e': expr [] t),
-                 step e e' ->
-                 step' e e'.
-
 Ltac deex :=
   match goal with
   | [ H: exists (varname:_), _ |- _ ] =>
@@ -312,20 +307,14 @@ Ltac deex :=
          | [ H: _ /\ _ |- _ ] => destruct H
          end.
 
+Print Assumptions inj_pair2.
+
 Ltac inj_pair2 :=
   match goal with
   | [ H: existT ?P ?p _ = existT ?P ?p _ |- _ ] =>
     apply inj_pair2 in H; subst
   end.
 
-Lemma step_step' : forall t (e e': expr [] t),
-                     step' e e' ->
-                     step e e'.
-  intros.
-  inversion H; repeat inj_pair2; auto.
-Qed.
-
-Hint Resolve step'_step step_step'.
 Hint Constructors step val.
 
 Theorem progress : forall t (e: expr [] t),
@@ -333,19 +322,14 @@ Theorem progress : forall t (e: expr [] t),
     exists e', step e e'.
 Proof.
   intros.
-  assert (val e \/ exists e', step' e e'). {
-    remember [].
-    induction e; subst; eauto.
-    inversion v.
-    destruct (IHe eq_refl); repeat deex; eauto 10.
-    destruct IHe1; repeat deex; eauto 10.
-    destruct IHe2; repeat deex; eauto 10.
-    inversion H; inj_pair2; eauto 10.
-    destruct IHe3; repeat deex; eauto 10.
-    inversion H; inj_pair2; eauto 10.
-  }
-  destruct H; eauto.
-  deex. eauto 10.
+  dependent induction e; subst; eauto.
+  - inversion v.
+  - edestruct IHe; repeat deex; eauto.
+  - edestruct IHe1; repeat deex; eauto.
+    edestruct IHe2; repeat deex; eauto.
+    inversion H; repeat inj_pair2; eauto.
+  - edestruct IHe3; repeat deex; eauto.
+    inversion H; repeat inj_pair2; eauto.
 Qed.
 
 Ltac inv_step :=
@@ -428,8 +412,6 @@ Ltac simplify :=
          | [ H: exists _, _ |- _ ] => deex
          | [ H: ?a = ?a |- _ ] => clear H
          | _ => inj_pair2
-         | [ H: step' _ _ |- _ ] => inversion H; subst; clear H;
-                                  repeat inj_pair2
          | [ H: @hereditary_termination natTy _ |- _ ] =>
            simpl in H
          | [ H: @hereditary_termination (arrow _ _) _ |- _ ] =>
@@ -437,15 +419,6 @@ Ltac simplify :=
          | _ => progress simpl
          | _ => progress unfold terminating in *
          end.
-
-Lemma step_to_step' : forall t (e e': expr [] t),
-    step e e' ->
-    step' e e'.
-Proof.
-  eauto.
-Qed.
-
-Hint Resolve step_to_step'.
 
 Definition deterministic A (R: A -> A -> Prop) :=
   forall a a' a'', R a a' -> R a a'' ->
