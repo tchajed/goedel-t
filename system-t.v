@@ -673,3 +673,36 @@ Theorem exprs_terminating :
 Proof.
   auto using hereditary_termination_terminating, exprs_ht.
 Qed.
+
+Fixpoint maybe_step t (e: expr [] t) : {e' | step e e'} + {val e}.
+  Ltac solve_val := try solve [ right; eauto ].
+  destruct e; solve_val.
+  - inversion v.
+  - destruct (maybe_step _ e) as [[e' ?] | ]; solve_val.
+    left.
+    (* step_s *)
+    exists (succ e'); eauto.
+  - left.
+    destruct (maybe_step _ e1) as [[e1' ?] |].
+    (* step_ap1 *)
+    exists (app e1' e2); eauto.
+    destruct (maybe_step _ e2) as [[e2' ?] |].
+    (* step_ap2 *)
+    exists (app e1 e2'); eauto.
+    dependent destruction e1;
+      try solve [ exfalso; inversion v0 ].
+    exists (subst e2 e1); eauto.
+    exfalso; inversion v.
+    exfalso; inversion v.
+  - left.
+    destruct (maybe_step _ e3) as [[e3' ?] |].
+    (* step_iter1 *)
+    exists (iter e1 e2 e3'); eauto.
+    dependent destruction e3;
+      try solve [ exfalso; inversion v ].
+    (* step_iter2 *)
+    exists e1; eauto.
+    (* step_iter3 *)
+    exists (subst (iter e1 e2 e3) e2).
+    inversion v; eauto.
+Defined.
