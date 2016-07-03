@@ -4,6 +4,7 @@ Import List.ListNotations.
 Open Scope list.
 Require Import Equality.
 Require Import Eqdep_dec.
+Require Import Recdef.
 Require Import FunctionalExtensionality.
 
 Set Implicit Arguments.
@@ -716,4 +717,22 @@ Proof.
   exfalso; eapply val_no_step; eauto.
   constructor; intros.
   pose proof (step_deterministic H H2); subst; eauto.
+Qed.
+
+Function eval t (e: expr [] t) {wf (converse_step (t:=t)) e} :=
+  match maybe_step e with
+  | inleft e' => eval (proj1_sig e')
+  | inright _ => e
+  end.
+Proof.
+  unfold converse_step.
+  intros.
+  destruct e'; eauto.
+  apply converse_step_well_founded.
+Defined.
+
+Theorem eval_val : forall t (e: expr [] t), val (eval e).
+Proof.
+  intros.
+  functional induction (eval e); eauto.
 Qed.
