@@ -708,7 +708,7 @@ Defined.
 
 Definition converse_step t e e' := step (t:=t) e' e.
 
-Theorem converse_step_well_founded : forall t, well_founded (converse_step (t:=t)).
+Theorem converse_step_wf : forall t, well_founded (converse_step (t:=t)).
 Proof.
   unfold well_founded, converse_step; intros t e.
   pose proof (exprs_terminating e); simplify.
@@ -717,22 +717,42 @@ Proof.
   exfalso; eapply val_no_step; eauto.
   constructor; intros.
   pose proof (step_deterministic H H2); subst; eauto.
-Qed.
+Defined.
 
-Function eval t (e: expr [] t) {wf (converse_step (t:=t)) e} :=
-  match maybe_step e with
-  | inleft e' => eval (proj1_sig e')
-  | inright _ => e
-  end.
+Definition eval t : expr [] t -> expr [] t.
 Proof.
-  unfold converse_step.
-  intros.
-  destruct e'; eauto.
-  apply converse_step_well_founded.
+  refine (Fix (converse_step_wf (t:=t)) (fun _ => expr [] t)
+              (fun e => match maybe_step e with
+                     | inleft e' => _
+                     | inright _ => _
+                     end)); intro eval_e.
+  - (* recursive subcall via relation proof *)
+    exact (eval_e (proj1_sig e') (proj2_sig e')).
+  - (* reached a value, terminate *)
+    exact e.
 Defined.
 
 Theorem eval_val : forall t (e: expr [] t), val (eval e).
 Proof.
+  unfold eval, Fix; intros.
+  induction (converse_step_wf e) using Acc_inv_dep; simpl.
+  destruct (maybe_step x); eauto.
+Qed.
+
+(* alternate definition using Function *)
+Function eval' t (e: expr [] t) {wf (converse_step (t:=t)) e} :=
+  match maybe_step e with
+  | inleft e' => eval' (proj1_sig e')
+  | inright _ => e
+  end.
+Proof.
+  unfold converse_step.
+  destruct e'; auto.
+  apply converse_step_wf.
+Defined.
+
+Theorem eval'_val : forall t (e: expr [] t), val (eval' e).
+Proof.
   intros.
-  functional induction (eval e); eauto.
+  functional induction (eval' e); eauto.
 Qed.
