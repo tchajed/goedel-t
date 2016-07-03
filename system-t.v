@@ -704,3 +704,16 @@ Fixpoint maybe_step t (e: expr [] t) : {e' | step e e'} + {val e}.
     exists (subst (iter e1 e2 e3) e2).
     inversion v; eauto.
 Defined.
+
+Definition converse_step t e e' := step (t:=t) e' e.
+
+Theorem converse_step_well_founded : forall t, well_founded (converse_step (t:=t)).
+Proof.
+  unfold well_founded, converse_step; intros t e.
+  pose proof (exprs_terminating e); simplify.
+  induction H.
+  constructor; intros.
+  exfalso; eapply val_no_step; eauto.
+  constructor; intros.
+  pose proof (step_deterministic H H2); subst; eauto.
+Qed.
