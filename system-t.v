@@ -158,12 +158,18 @@ Definition compose_substitutions Gamma Gamma' Gamma''
            (s': substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
   fun t v => apply_substitution s' (s t v).
 
-Ltac var_extensionality :=
+Ltac subst_ext :=
+  intros;
+  let ext := (let t := fresh "t" in
+             let v := fresh "v" in
+             extensionality t; extensionality v;
+             dependent destruction v;
+             eauto) in
   match goal with
-    | [ |- ?X = ?Y ] =>
-      let t := fresh "t" in extensionality t;
-        let v := fresh "v" in extensionality v;
-          dependent destruction v; auto
+  | [ |- _ = _ <: (renaming _ _) ] =>
+    ext
+  | [ |- _ = _ <: (substitution _ _) ] =>
+    ext
   end.
 
 Ltac do_rewrites E :=
@@ -176,8 +182,11 @@ Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
   eapply var; eauto.
 Defined.
 
-Lemma noop_substitution_shift : forall {Gamma} t, substitution_shift (t := t) (noop_substitution (Gamma := Gamma)) = noop_substitution.
-  intros. var_extensionality.
+Lemma noop_substitution_shift : forall Gamma t,
+    substitution_shift (t := t) (noop_substitution (Gamma := Gamma)) =
+    noop_substitution.
+Proof.
+  subst_ext.
 Qed.
 
 Lemma substitute_noop_substitution :
@@ -194,7 +203,7 @@ Lemma shift_ren_ren :
     renaming_shift (t:=t) (compose_ren_ren r r') =
     compose_ren_ren (renaming_shift r) (renaming_shift r').
 Proof.
-  intros. var_extensionality.
+  subst_ext.
 Qed.
 
 Lemma apply_ren_ren :
@@ -213,7 +222,7 @@ Lemma shift_ren_sub :
     substitution_shift (t:=t) (compose_ren_sub r s) =
     compose_ren_sub (renaming_shift r) (substitution_shift s).
 Proof.
-  intros. var_extensionality.
+  subst_ext.
 Qed.
 
 Lemma apply_ren_sub :
@@ -232,8 +241,10 @@ Lemma shift_sub_ren :
     substitution_shift (t:=t) (compose_sub_ren s r) =
     compose_sub_ren (substitution_shift s) (renaming_shift r).
 Proof.
-  intros. var_extensionality. unfold compose_sub_ren. simpl.
-  unfold expr_shift. rewrite <- ?apply_ren_ren. auto.
+  subst_ext.
+  unfold compose_sub_ren; simpl.
+  unfold expr_shift; simpl.
+  rewrite <- ?apply_ren_ren; auto.
 Qed.
 
 Lemma apply_sub_ren :
@@ -252,8 +263,10 @@ Lemma shift_sub_sub :
     substitution_shift (t:=t) (compose_substitutions s s') =
     compose_substitutions (substitution_shift s) (substitution_shift s').
 Proof.
-  intros. var_extensionality. simpl. unfold compose_substitutions. simpl.
-  unfold expr_shift. rewrite <- apply_sub_ren. rewrite <- apply_ren_sub. auto.
+  subst_ext; simpl.
+  unfold compose_substitutions; simpl.
+  unfold expr_shift; simpl.
+  rewrite <- apply_sub_ren, <- apply_ren_sub; auto.
 Qed.
 
 Lemma apply_sub_sub :
@@ -432,11 +445,9 @@ Theorem deterministic_clos_refl_R : forall A (R: A -> A -> Prop),
       clos_refl_trans_1n R a' a''.
 Proof.
   intros.
-
   induction H0.
-  apply H1 in H2; intuition eauto.
-  pose proof (H _ _ _ H0 H2); subst.
-  eauto.
+  - exfalso; intuition eauto.
+  - erewrite H; eauto.
 Qed.
 
 Lemma val_no_step : forall t (e e': expr [] t),
@@ -449,8 +460,8 @@ Qed.
 
 Definition val_dec : forall t (e: expr [] t), {val e} + {~val e}.
 Proof.
-  induction e; try solve [ right; inversion 1]; intuition eauto.
-  right; inversion 1; intuition.
+  induction e; intuition;
+    try solve [ right; inversion 1; intuition ].
 Defined.
 
 Theorem step_deterministic : forall t, deterministic (step (t:=t)).
