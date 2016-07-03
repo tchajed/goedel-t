@@ -3,7 +3,7 @@ Require Import Relations.
 Import List.ListNotations.
 Open Scope list.
 Require Import Equality.
-Import Eqdep.
+Require Import Eqdep_dec.
 Require Import FunctionalExtensionality.
 
 Set Implicit Arguments.
@@ -307,12 +307,11 @@ Ltac deex :=
          | [ H: _ /\ _ |- _ ] => destruct H
          end.
 
-Print Assumptions inj_pair2.
 
 Ltac inj_pair2 :=
   match goal with
-  | [ H: existT ?P ?p _ = existT ?P ?p _ |- _ ] =>
-    apply inj_pair2 in H; subst
+  | [ H: @existT type ?P ?p _ = existT ?P ?p _ |- _ ] =>
+    apply (inj_pair2_eq_dec type type_dec) in H; subst
   end.
 
 Hint Constructors step val.
