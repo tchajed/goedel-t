@@ -242,7 +242,7 @@ Proof.
   subst_ext.
   unfold compose_sub_ren; simpl.
   unfold expr_shift; simpl.
-  rewrite <- ?apply_ren_ren; auto.
+  rewrite <- !apply_ren_ren; auto.
 Qed.
 
 Lemma apply_sub_ren :
@@ -529,11 +529,11 @@ Proof.
   extensionality t; extensionality e.
   generalize dependent Gamma'.
   induction e; simplify; f_equal; eauto.
-  erewrite ?IHe,
-  ?rename_substitution_shift_commute by eauto;
+  erewrite !IHe,
+  !rename_substitution_shift_commute by eauto;
     auto.
-  erewrite ?IHe1, ?IHe2, ?IHe3,
-  ?rename_substitution_shift_commute by eauto;
+  erewrite ?IHe1, ?IHe2,
+  !rename_substitution_shift_commute by eauto;
     eauto.
 Qed.
 
@@ -559,10 +559,10 @@ Lemma shift_unshift_noop : forall Gamma t (e: expr Gamma t)
 Proof.
   induction e; simplify; f_equal;
     eauto;
-    rewrite ?apply_renaming_as_substitution,
-    <- ?apply_sub_sub,
-    ?compose_rename_unshift,
-    ?substitute_noop_substitution;
+    rewrite !apply_renaming_as_substitution,
+    <- !apply_sub_sub,
+    !compose_rename_unshift,
+    !substitute_noop_substitution;
     auto.
 Qed.
 
