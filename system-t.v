@@ -757,14 +757,6 @@ Proof.
   functional induction (eval' e); eauto.
 Qed.
 
-Theorem eval_step : forall t (e: expr [] t),
-    e |->* eval e.
-Proof.
-  unfold eval, Fix; intros.
-  induction (converse_step_wf e) using Acc_inv_dep; simpl.
-  destruct (maybe_step x) as [[] |]; eauto.
-Qed.
-
 (* TODO: move this up and use it for deterministic_clos_refl_R as well *)
 Definition final A (R: A -> A -> Prop) a := forall a', ~R a a'.
 
@@ -799,6 +791,31 @@ Lemma step_val_unique : forall t (e e' e'': expr [] t),
     e' = e''.
 Proof.
   eauto using deterministic_clos_refl_unique, step_deterministic, val_final.
+Qed.
+
+Theorem eval_step : forall t (e: expr [] t),
+    e |->* eval e.
+Proof.
+  unfold eval, Fix; intros.
+  induction (converse_step_wf e) using Acc_inv_dep; simpl.
+  destruct (maybe_step x) as [[] |]; eauto.
+Qed.
+
+Theorem eval'_step : forall t (e: expr [] t),
+    e |->* eval' e.
+Proof.
+  intros.
+  functional induction (eval' e); eauto.
+  destruct e'; eauto.
+Qed.
+
+Theorem eval_eq_eval' : forall t (e: expr [] t),
+    eval e = eval' e.
+Proof.
+  intros.
+  eapply (step_val_unique (e := e));
+    eauto using eval_step, eval'_step,
+    eval_val, eval'_val.
 Qed.
 
 (* Reflecting well-typed terms into Gallina terms *)
