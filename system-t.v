@@ -18,11 +18,11 @@ Proof.
   decide equality.
 Defined.
 
-Definition mapping := list type.
+Definition context := list type.
 
-Implicit Types (Gamma: mapping) (t: type).
+Implicit Types (Gamma: context) (t: type).
 
-Inductive variable : mapping -> type -> Type :=
+Inductive variable : context -> type -> Type :=
 | var_here : forall Gamma t, variable (t :: Gamma) t
 | var_outer : forall Gamma t t', variable Gamma t -> variable (t' :: Gamma) t.
 
@@ -36,7 +36,7 @@ Definition variable_add Gamma t (v: variable Gamma t) t' :
   variable (t' :: Gamma) t :=
   var_outer t' v.
 
-Inductive expr (Gamma: mapping) : type -> Type :=
+Inductive expr (Gamma: context) : type -> Type :=
 | var : forall t (v: variable Gamma t), expr Gamma t
 | zero : expr Gamma natTy
 | succ : expr Gamma natTy -> expr Gamma natTy
@@ -826,7 +826,7 @@ Fixpoint type_denote (t: type) : Type :=
   | arrow t1 t2 => type_denote t1 -> type_denote t2
   end.
 
-Fixpoint ctx_denote (Gamma: mapping) : Type :=
+Fixpoint ctx_denote (Gamma: context) : Type :=
   match Gamma with
   | nil => unit
   | t :: Gamma' => type_denote t * ctx_denote Gamma'
