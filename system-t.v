@@ -858,7 +858,32 @@ Fixpoint expr_denote Gamma (t: type) (e: expr Gamma t) :
     exact (iter_f (IHn, env)).
 Defined.
 
-Theorem expr_denote_ok : forall t (e: expr [] t),
-    expr_denote e = expr_denote (eval e).
+Lemma expr_denote_step : forall t (e e': expr [] t),
+    e |-> e' ->
+    expr_denote e tt = expr_denote e' tt.
 Proof.
-Abort.
+  induction 1; simpl; intros; eauto; try congruence.
+  - (* TODO: generalize over environments *)
+    admit.
+  - dependent induction H; simplify.
+    (* need general property of expr_denote with for substitutions, not just the
+    shift substitution *)
+    admit.
+    rewrite IHval.
+    admit.
+Admitted.
+
+Lemma expr_denote_step_star : forall t (e e': expr [] t),
+    e |->* e' ->
+    expr_denote e tt = expr_denote e' tt.
+Proof.
+  intros.
+  induction H; auto.
+  pose proof (expr_denote_step H); congruence.
+Qed.
+
+Theorem expr_denote_ok : forall t (e: expr [] t),
+    expr_denote e tt = expr_denote (eval e) tt.
+Proof.
+  eauto using eval_step, expr_denote_step_star.
+Qed.
