@@ -757,6 +757,50 @@ Proof.
   functional induction (eval' e); eauto.
 Qed.
 
+Theorem eval_step : forall t (e: expr [] t),
+    e |->* eval e.
+Proof.
+  unfold eval, Fix; intros.
+  induction (converse_step_wf e) using Acc_inv_dep; simpl.
+  destruct (maybe_step x) as [[] |]; eauto.
+Qed.
+
+(* TODO: move this up and use it for deterministic_clos_refl_R as well *)
+Definition final A (R: A -> A -> Prop) a := forall a', ~R a a'.
+
+Theorem deterministic_clos_refl_unique : forall A (R: A -> A -> Prop),
+    deterministic R ->
+    forall a a' a'',
+      clos_refl_trans_1n R a a' ->
+      clos_refl_trans_1n R a a'' ->
+      final R a' ->
+      final R a'' ->
+      a' = a''.
+Proof.
+  unfold final; intros.
+  generalize dependent a''.
+  induction H0; intros.
+  - inversion H1; subst; eauto.
+    exfalso; intuition eauto.
+  - eauto using deterministic_clos_refl_R.
+Qed.
+
+Lemma val_final : forall t (e: expr [] t), val e ->
+                                      final step e.
+Proof.
+  unfold final; eauto using val_no_step.
+Qed.
+
+Lemma step_val_unique : forall t (e e' e'': expr [] t),
+    e |->* e' ->
+    e |->* e'' ->
+    val e' ->
+    val e'' ->
+    e' = e''.
+Proof.
+  eauto using deterministic_clos_refl_unique, step_deterministic, val_final.
+Qed.
+
 (* Reflecting well-typed terms into Gallina terms *)
 
 Fixpoint type_denote (t: type) : Type :=
