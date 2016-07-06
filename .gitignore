@@ -1,0 +1,7 @@
+*.aux
+Makefile.coq
+
+# Coq build files
+*.glob
+*.v.d
+*.vo
