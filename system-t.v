@@ -887,3 +887,7 @@ Theorem expr_denote_ok : forall t (e: expr [] t),
 Proof.
   eauto using eval_step, expr_denote_step_star.
 Qed.
+
+(* Local Variables: *)
+(* company-coq-local-symbols: (("Gamma" . ?Γ) ("gamma" . ?γ)) *)
+(* End: *)
