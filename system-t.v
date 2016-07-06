@@ -1,3 +1,21 @@
+(**
+ * Formalization of Gödel's System T.
+ *
+ * We represent the language with well-typed terms, following an approach
+ * similar to "Strongly Typed Term Representations in Coq" by Nick Benton,
+ * Chung-Kil Hur, Andrew J. Kennedy and Conor Mcbride (2012). A good high-level
+ * explanation of the approach is in this presentation:
+ * https://www.cis.upenn.edu/~sweirich/wmm/wmm09/Benton-Slides.pdf.
+ *
+ * From there we define a unary logical relation we call hereditary termination,
+ * well-founded due to recursion on (object) types. We prove all terms are
+ * hereditarily terminating, which implies termination of every term.
+ *
+ * As a nice side-effect, we also use the termination proof as the crucial lemma
+ * in a well-foundedness proof for an evaluator that steps system T expressions
+ * to completion, with the expected correctness proof.
+ *)
+
 Require List.
 Require Import Relations.
 Import List.ListNotations.
@@ -8,6 +26,8 @@ Require Import Recdef.
 Require Import FunctionalExtensionality.
 
 Set Implicit Arguments.
+
+(** * Language definitions *)
 
 Inductive type :=
   | natTy
@@ -20,21 +40,9 @@ Defined.
 
 Definition context := list type.
 
-Implicit Types (Gamma: context) (t: type).
-
 Inductive variable : context -> type -> Type :=
 | var_here : forall Gamma t, variable (t :: Gamma) t
 | var_outer : forall Gamma t t', variable Gamma t -> variable (t' :: Gamma) t.
-
-Theorem variable_to_in : forall Gamma t,
-    variable Gamma t -> List.In t Gamma.
-Proof.
-  induction 1; simpl; intros; eauto.
-Qed.
-
-Definition variable_add Gamma t (v: variable Gamma t) t' :
-  variable (t' :: Gamma) t :=
-  var_outer t' v.
 
 Inductive expr (Gamma: context) : type -> Type :=
 | var : forall t (v: variable Gamma t), expr Gamma t
@@ -52,7 +60,15 @@ Inductive expr (Gamma: context) : type -> Type :=
       (e: expr (t :: Gamma) t)
       (n: expr Gamma natTy),
       expr Gamma t.
+
 Arguments zero {Gamma}.
+
+Implicit Types (Gamma: context) (t: type).
+
+(** * Substitution *)
+
+(** Defining substitution is tricky. We build it up gradually , starting with a
+more basic notion of renaming. *)
 
 Definition renaming Gamma Gamma' :=
   forall t (v: variable Gamma t), variable Gamma' t.
@@ -88,13 +104,13 @@ Definition apply_renaming Gamma Gamma' (gamma: renaming Gamma Gamma')
     now apply IHe3.
 Defined.
 
-Definition var_shift Gamma t' : renaming _ _ := fun t (v: variable Gamma t) => var_outer t' v.
+Definition var_shift Gamma t' : renaming Gamma (t'::Gamma) :=
+  fun _ v => var_outer t' v.
 
-Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t.
-  eapply apply_renaming; eauto.
-  exact (var_shift _).
-Defined.
+Definition expr_shift Gamma t t' (e: expr Gamma t) : expr (t' :: Gamma) t :=
+  apply_renaming (var_shift t') e.
 
+(** General substitution between two contexts. *)
 Definition substitution Gamma Gamma' :=
   forall t (v: variable Gamma t), expr Gamma' t.
 
@@ -139,6 +155,8 @@ Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
     now apply IHe3.
 Defined.
 
+(** * Four types of composition, between renamings and substitutions. *)
+
 Definition compose_ren_ren Gamma Gamma' Gamma''
            (r: renaming Gamma Gamma')
            (r': renaming Gamma' Gamma'') : renaming Gamma Gamma'' :=
@@ -154,7 +172,7 @@ Definition compose_sub_ren Gamma Gamma' Gamma''
            (r: renaming Gamma' Gamma'') : substitution Gamma Gamma'' :=
   fun t v => apply_renaming r (s t v).
 
-Definition compose_substitutions Gamma Gamma' Gamma''
+Definition compose_sub_sub Gamma Gamma' Gamma''
            (s: substitution Gamma Gamma')
            (s': substitution Gamma' Gamma'') : substitution Gamma Gamma'' :=
   fun t v => apply_substitution s' (s t v).
@@ -171,115 +189,170 @@ Ltac subst_ext :=
   | [ |- _ = _ :> (substitution _ _) ] => ext
   end.
 
-Ltac do_rewrites E :=
-  intros; simpl; try rewrite E;
-  repeat match goal with [H: context[_=_] |- _] => rewrite H end;
-  auto.
+Ltac inj_pair2 :=
+  match goal with
+  | [ H: @existT type ?P ?p _ = existT ?P ?p _ |- _ ] =>
+    apply (inj_pair2_eq_dec type type_dec) in H; subst
+  end.
+
+Ltac deex H :=
+  lazymatch type of H with
+  | exists (varname:_), _ =>
+    let name := fresh varname in
+    destruct H as [name ?]
+  end.
+
+Ltac simplify_hook := fail.
+
+Ltac simplify :=
+  repeat match goal with
+         | [ |- forall _, _ ] => intros
+         | _ => progress subst
+         | [ H: exists _, _ |- _ ] => deex H
+         | [ H: _ /\ _ |- _ ] => destruct H
+         | [ H: ?a = ?a |- _ ] => clear H
+         | _ => inj_pair2
+         | _ => progress simpl
+         | _ => progress autounfold in *
+         | [ H: context[_ = _] |- _ ] => rewrite H by auto
+         | _ => progress autorewrite with subst
+         | _ => simplify_hook
+         end.
+
+Ltac crush :=
+  simplify; eauto;
+  try solve [ subst_ext ].
 
 Definition noop_substitution : forall {Gamma}, substitution Gamma Gamma.
   intros Gamma t v.
-  eapply var; eauto.
+  apply var; auto.
 Defined.
 
 Lemma noop_substitution_shift : forall Gamma t,
     substitution_shift (t := t) (noop_substitution (Gamma := Gamma)) =
     noop_substitution.
 Proof.
-  subst_ext.
+  crush.
 Qed.
+
+Hint Rewrite noop_substitution_shift : subst.
 
 Lemma substitute_noop_substitution :
   forall Gamma t (e: expr Gamma t),
     apply_substitution noop_substitution e = e.
 Proof.
-  induction e; eauto; simpl; try rewrite noop_substitution_shift; congruence.
+  induction e; crush.
 Qed.
 
-Lemma shift_ren_ren :
-  forall Gamma Gamma' Gamma'' t
-    (r: renaming Gamma Gamma')
-    (r': renaming Gamma' Gamma''),
-    renaming_shift (t:=t) (compose_ren_ren r r') =
-    compose_ren_ren (renaming_shift r) (renaming_shift r').
-Proof.
-  subst_ext.
-Qed.
+Hint Rewrite substitute_noop_substitution : subst.
 
-Lemma apply_ren_ren :
-  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
-    (r: renaming Gamma Gamma')
-    (r': renaming Gamma' Gamma'') ,
-    apply_renaming (compose_ren_ren r r') e = apply_renaming r' (apply_renaming r e).
-Proof.
-  induction e; do_rewrites shift_ren_ren.
-Qed.
+Section RenameSubstitutionCompositions.
 
-Lemma shift_ren_sub :
-  forall Gamma Gamma' Gamma'' t
-    (r: renaming Gamma Gamma')
-    (s: substitution Gamma' Gamma''),
-    substitution_shift (t:=t) (compose_ren_sub r s) =
-    compose_ren_sub (renaming_shift r) (substitution_shift s).
-Proof.
-  subst_ext.
-Qed.
+  Lemma shift_ren_ren :
+    forall Gamma Gamma' Gamma'' t
+      (r: renaming Gamma Gamma')
+      (r': renaming Gamma' Gamma''),
+      renaming_shift (t:=t) (compose_ren_ren r r') =
+      compose_ren_ren (renaming_shift r) (renaming_shift r').
+  Proof.
+    crush.
+  Qed.
 
-Lemma apply_ren_sub :
-  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
-    (r: renaming Gamma Gamma')
-    (s: substitution Gamma' Gamma'') ,
-    apply_substitution (compose_ren_sub r s) e = apply_substitution s (apply_renaming r e).
-Proof.
-  induction e; do_rewrites shift_ren_sub.
-Qed.
+  Hint Rewrite @shift_ren_ren : subst.
 
-Lemma shift_sub_ren :
-  forall Gamma Gamma' Gamma'' t
-    (s: substitution Gamma Gamma')
-    (r: renaming Gamma' Gamma''),
-    substitution_shift (t:=t) (compose_sub_ren s r) =
-    compose_sub_ren (substitution_shift s) (renaming_shift r).
-Proof.
-  subst_ext.
-  unfold compose_sub_ren; simpl.
-  unfold expr_shift; simpl.
-  rewrite <- !apply_ren_ren; auto.
-Qed.
+  Lemma apply_ren_ren :
+    forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+      (r: renaming Gamma Gamma')
+      (r': renaming Gamma' Gamma'') ,
+      apply_renaming (compose_ren_ren r r') e = apply_renaming r' (apply_renaming r e).
+  Proof.
+    induction e; crush.
+  Qed.
 
-Lemma apply_sub_ren :
-  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
-    (s: substitution Gamma Gamma')
-    (r: renaming Gamma' Gamma''),
-    apply_substitution (compose_sub_ren s r) e = apply_renaming r (apply_substitution s e).
-Proof.
-  induction e; do_rewrites shift_sub_ren.
-Qed.
+  Lemma shift_ren_sub :
+    forall Gamma Gamma' Gamma'' t
+      (r: renaming Gamma Gamma')
+      (s: substitution Gamma' Gamma''),
+      substitution_shift (t:=t) (compose_ren_sub r s) =
+      compose_ren_sub (renaming_shift r) (substitution_shift s).
+  Proof.
+    crush.
+  Qed.
 
-Lemma shift_sub_sub :
-  forall Gamma Gamma' Gamma'' t
-    (s: substitution Gamma Gamma')
-    (s': substitution Gamma' Gamma''),
-    substitution_shift (t:=t) (compose_substitutions s s') =
-    compose_substitutions (substitution_shift s) (substitution_shift s').
-Proof.
-  subst_ext; simpl.
-  unfold compose_substitutions; simpl.
-  unfold expr_shift; simpl.
-  rewrite <- apply_sub_ren, <- apply_ren_sub; auto.
-Qed.
+  Hint Rewrite shift_ren_sub : subst.
 
-Lemma apply_sub_sub :
-  forall Gamma t (e: expr Gamma t) Gamma' Gamma''
-    (s: substitution Gamma Gamma')
-    (s': substitution Gamma' Gamma''),
-    apply_substitution (compose_substitutions s s') e =
-    apply_substitution s' (apply_substitution s e).
-Proof.
-  induction e; do_rewrites shift_sub_sub.
-Qed.
+  Lemma apply_ren_sub :
+    forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+      (r: renaming Gamma Gamma')
+      (s: substitution Gamma' Gamma'') ,
+      apply_substitution (compose_ren_sub r s) e = apply_substitution s (apply_renaming r e).
+  Proof.
+    induction e; crush.
+  Qed.
+
+  Hint Rewrite <- apply_ren_ren : subst.
+
+  Lemma shift_sub_ren :
+    forall Gamma Gamma' Gamma'' t
+      (s: substitution Gamma Gamma')
+      (r: renaming Gamma' Gamma''),
+      substitution_shift (t:=t) (compose_sub_ren s r) =
+      compose_sub_ren (substitution_shift s) (renaming_shift r).
+  Proof.
+    subst_ext.
+    unfold compose_sub_ren; simplify.
+    unfold expr_shift; crush.
+  Qed.
+
+  Hint Rewrite shift_sub_ren : subst.
+
+  Lemma apply_sub_ren :
+    forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+      (s: substitution Gamma Gamma')
+      (r: renaming Gamma' Gamma''),
+      apply_substitution (compose_sub_ren s r) e = apply_renaming r (apply_substitution s e).
+  Proof.
+    induction e; crush.
+  Qed.
+
+  Hint Rewrite <- apply_sub_ren : subst.
+  Hint Rewrite <- apply_ren_sub : subst.
+
+  Lemma shift_sub_sub :
+    forall Gamma Gamma' Gamma'' t
+      (s: substitution Gamma Gamma')
+      (s': substitution Gamma' Gamma''),
+      substitution_shift (t:=t) (compose_sub_sub s s') =
+      compose_sub_sub (substitution_shift s) (substitution_shift s').
+  Proof.
+    subst_ext.
+    unfold compose_sub_sub; simpl.
+    unfold expr_shift; crush.
+  Qed.
+
+  Hint Rewrite shift_sub_sub : subst.
+
+  Lemma apply_sub_sub :
+    forall Gamma t (e: expr Gamma t) Gamma' Gamma''
+      (s: substitution Gamma Gamma')
+      (s': substitution Gamma' Gamma''),
+      apply_substitution (compose_sub_sub s s') e =
+      apply_substitution s' (apply_substitution s e).
+  Proof.
+    induction e; crush.
+  Qed.
+
+End RenameSubstitutionCompositions.
+
+(** * Finally we build subst from a simple substitution.
+
+Note that subst creates closed terms.
+ *)
 
 Definition subst t' (e': expr [] t') t (e: expr [t'] t) : expr [] t :=
   apply_substitution (substitution_shift_expr e' noop_substitution) e.
+
+(** * The dynamics of the language. *)
 
 Inductive val Gamma : forall t, expr Gamma t -> Prop :=
 | val_z : val zero
@@ -309,38 +382,23 @@ Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
                  val n ->
                  step (iter ez e (succ n)) (subst (iter ez e n) e).
 
-Ltac deex :=
-  match goal with
-  | [ H: exists (varname:_), _ |- _ ] =>
-    let name := fresh varname in
-    destruct H as [name ?]
-  end;
-  repeat match goal with
-         | [ H: _ /\ _ |- _ ] => destruct H
-         end.
-
-
-Ltac inj_pair2 :=
-  match goal with
-  | [ H: @existT type ?P ?p _ = existT ?P ?p _ |- _ ] =>
-    apply (inj_pair2_eq_dec type type_dec) in H; subst
-  end.
+Arguments step {t} e e'.
 
 Hint Constructors step val.
 
+(** * We prove progress only as an exercise. *)
 Theorem progress : forall t (e: expr [] t),
     val e \/
     exists e', step e e'.
 Proof.
-  intros.
-  dependent induction e; subst; eauto.
+  dependent induction e; eauto.
   - inversion v.
-  - edestruct IHe; repeat deex; eauto.
-  - edestruct IHe1; repeat deex; eauto.
-    edestruct IHe2; repeat deex; eauto.
-    inversion H; repeat inj_pair2; eauto.
-  - edestruct IHe3; repeat deex; eauto.
-    inversion H; repeat inj_pair2; eauto.
+  - edestruct IHe; crush.
+  - edestruct IHe1; crush.
+    edestruct IHe2; crush.
+    inversion H; crush.
+  - edestruct IHe3; crush.
+    inversion H; crush.
 Qed.
 
 Ltac inv_step :=
@@ -349,119 +407,76 @@ Ltac inv_step :=
     inversion H; repeat inj_pair2; clear H
   end.
 
-Arguments step {t} e e'.
+(** * General relation properties. *)
+
 Hint Constructors clos_refl_trans_1n.
 Arguments clos_refl_trans_1n {A} R _ _.
-Infix "|->" := (step) (at level 20).
-Infix "|->*" := (clos_refl_trans_1n step) (at level 20).
 
-Lemma step_from_succ : forall e e',
-    succ e |->* e' ->
-    exists v', e' = succ v'.
-Proof.
-  intros.
-  remember (succ e).
-  generalize dependent e.
-  induction H; intros; subst; eauto.
-  inv_step; eauto.
-Qed.
-
-(* non-strictly positive definition *)
-(*
-Inductive HT : forall t (e: expr [] t), Prop :=
-| HT_natTy : forall e, terminating e -> HT e
-| HT_arrow : forall t1 t2 (e: expr [] (arrow t1 t2)), (forall (e1: expr [] t1), HT e1 ->
-                                                                      HT (app e e1)) ->
-                                                 HT e.
-*)
-
-Definition terminating t (e: expr [] t) : Prop := exists e', e |->* e' /\ val e'.
-
-Fixpoint hereditary_termination t : expr [] t -> Prop :=
-  match t with
-  | natTy => fun e => terminating e
-  | arrow t1 t2 => fun e =>
-                    exists e0, e |->* abs e0 /\
-                    (forall e1: expr [] t1, hereditary_termination e1 ->
-                                       hereditary_termination (subst e1 e0))
-  end.
-
-Lemma step_respects_succ : forall e e',
-    e |->* e' ->
-    succ e |->* succ e'.
-Proof.
-  induction 1; intros; eauto.
-Qed.
-
-Hint Resolve step_respects_succ.
-
-Definition HT_context Gamma (gamma: substitution Gamma []) :=
-  forall t (v: variable Gamma t), hereditary_termination (gamma _ v).
-
-Lemma hereditary_termination_succ' : forall (e: expr [] natTy),
-    hereditary_termination (succ e) ->
-    hereditary_termination e.
-Proof.
-  simpl; unfold terminating; intros.
-  deex.
-
-  remember (succ e).
-  generalize dependent e.
-  induction H; intros; subst.
-  inversion H0; eauto.
-
-  inv_step.
-  intuition.
-  specialize (H e'); intuition.
-  deex; eauto.
-Qed.
-
-Ltac simplify :=
-  repeat match goal with
-         | [ |- forall _, _ ] => intros
-         | _ => progress subst
-         | [ H: exists _, _ |- _ ] => deex
-         | [ H: ?a = ?a |- _ ] => clear H
-         | _ => inj_pair2
-         | [ H: @hereditary_termination natTy _ |- _ ] =>
-           simpl in H
-         | [ H: @hereditary_termination (arrow _ _) _ |- _ ] =>
-           simpl in H
-         | _ => progress simpl
-         | _ => progress unfold terminating in *
-         end.
-
+(** A deterministic relation can also be viewed as a (non-computational) partial
+function *)
 Definition deterministic A (R: A -> A -> Prop) :=
-  forall a a' a'', R a a' -> R a a'' ->
+  forall a a' a'', R a a' ->
+              R a a'' ->
               a' = a''.
+
+(** Final values for a relation are those that have no image, interpreting the
+relation as a function *)
+Definition final A (R: A -> A -> Prop) a := forall a', ~R a a'.
 
 Theorem deterministic_clos_refl_R : forall A (R: A -> A -> Prop),
     deterministic R ->
     forall a a' a'',
       clos_refl_trans_1n R a a'' ->
-      (forall a''', ~R a'' a''') ->
+      final R a'' ->
       R a a' ->
       clos_refl_trans_1n R a' a''.
 Proof.
-  intros.
+  unfold final; intros.
   induction H0.
   - exfalso; intuition eauto.
   - erewrite H; eauto.
 Qed.
+
+(* Repeating a deterministic relation till it yields a final value, viewed as itself a relation, is deterministic. *)
+Theorem deterministic_clos_refl_unique : forall A (R: A -> A -> Prop),
+    deterministic R ->
+    forall a a' a'',
+      clos_refl_trans_1n R a a' ->
+      clos_refl_trans_1n R a a'' ->
+      final R a' ->
+      final R a'' ->
+      a' = a''.
+Proof.
+  unfold final; intros.
+  generalize dependent a''.
+  induction H0; intros.
+  - inversion H1; subst; eauto.
+    exfalso; intuition eauto.
+  - eauto using deterministic_clos_refl_R.
+Qed.
+
+(** * Specializing the above tools for step *)
+
+Infix "|->" := (step) (at level 20).
+Infix "|->*" := (clos_refl_trans_1n step) (at level 20).
 
 Lemma val_no_step : forall t (e e': expr [] t),
     val e ->
     ~e |-> e'.
 Proof.
   induction 1; simplify;
-    inversion 1; simplify; intuition eauto.
+    try match goal with
+        | [ H: _ |-> _ |- _ ] =>
+          inversion H; crush
+        end.
 Qed.
 
-Definition val_dec : forall t (e: expr [] t), {val e} + {~val e}.
+Lemma val_final : forall t (e: expr [] t),
+    val e ->
+    final step e.
 Proof.
-  induction e; intuition;
-    try solve [ right; inversion 1; intuition ].
-Defined.
+  unfold final; eauto using val_no_step.
+Qed.
 
 Theorem step_deterministic : forall t, deterministic (step (t:=t)).
 Proof.
@@ -486,10 +501,89 @@ Lemma step_clos_refl_R : forall t (e e' e'': expr [] t),
     e |-> e' ->
     e' |->* e''.
 Proof.
-  eauto using step_deterministic, val_no_step, deterministic_clos_refl_R.
+  eauto using step_deterministic, val_final, deterministic_clos_refl_R.
 Qed.
 
 Hint Resolve step_clos_refl_R.
+
+Lemma step_val_unique : forall t (e e' e'': expr [] t),
+    e |->* e' ->
+    e |->* e'' ->
+    val e' ->
+    val e'' ->
+    e' = e''.
+Proof.
+  eauto using deterministic_clos_refl_unique, step_deterministic, val_final.
+Qed.
+
+(* non-strictly positive definition *)
+(*
+Inductive HT : forall t (e: expr [] t), Prop :=
+| HT_natTy : forall e, terminating e -> HT e
+| HT_arrow : forall t1 t2 (e: expr [] (arrow t1 t2)), (forall (e1: expr [] t1), HT e1 ->
+                                                                      HT (app e e1)) ->
+                                                 HT e.
+*)
+
+(** * Logical relation for termination. *)
+
+Definition terminating t (e: expr [] t) : Prop := exists e', e |->* e' /\ val e'.
+
+Hint Unfold terminating.
+
+Fixpoint hereditary_termination t : expr [] t -> Prop :=
+  match t with
+  | natTy => fun e => terminating e
+  | arrow t1 t2 => fun e =>
+                    (* not only does e terminate, but we also extract the body
+                    of the abstraction it terminates to *)
+                    exists e0, e |->* abs e0 /\
+                    (forall e1: expr [] t1, hereditary_termination e1 ->
+                                       hereditary_termination (subst e1 e0))
+  end.
+
+Ltac simplify_hook ::=
+     match goal with
+     | [ H: @hereditary_termination natTy _ |- _ ] =>
+       simpl in H
+     | [ H: @hereditary_termination (arrow _ _) _ |- _ ] =>
+       simpl in H
+     end.
+
+(** Lift hereditary termination to contexts. *)
+Definition HT_context Gamma (gamma: substitution Gamma []) :=
+  forall t (v: variable Gamma t), hereditary_termination (gamma _ v).
+
+Lemma step_respects_succ : forall e e',
+    e |->* e' ->
+    succ e |->* succ e'.
+Proof.
+  induction 1; crush.
+Qed.
+
+Hint Resolve step_respects_succ.
+
+(** val turns out to be decidable *)
+Definition val_dec : forall t (e: expr [] t), {val e} + {~val e}.
+Proof.
+  induction e; intuition;
+    try solve [ right; inversion 1; intuition ].
+Defined.
+
+Lemma hereditary_termination_succ' : forall (e: expr [] natTy),
+    hereditary_termination (succ e) ->
+    hereditary_termination e.
+Proof.
+  simplify.
+
+  remember (succ e).
+  generalize dependent e.
+  induction H; crush.
+  inversion H0; eauto.
+
+  inv_step.
+  edestruct IHclos_refl_trans_1n; crush.
+Qed.
 
 Lemma HT_respects_step : forall t (e e': expr [] t),
     hereditary_termination e ->
@@ -506,22 +600,21 @@ Lemma HT_prepend_step : forall t (e e': expr [] t),
     e |-> e' ->
     hereditary_termination e.
 Proof.
-  simplify.
-  generalize dependent e.
-  generalize dependent e'.
-  induction t; simplify; eauto.
+  induction t; crush.
 Qed.
 
-Definition rename_substitution Gamma Gamma' (r: renaming Gamma Gamma') : substitution Gamma Gamma' :=
+Definition rename_substitution Gamma Gamma' (r: renaming Gamma Gamma') :
+  substitution Gamma Gamma' :=
   fun t e => var (r _ e).
 
 Lemma rename_substitution_shift_commute : forall Gamma Gamma' t (r: renaming Gamma Gamma'),
     rename_substitution (renaming_shift (t:=t) r) =
     substitution_shift (rename_substitution r).
 Proof.
-  intros; extensionality t'; extensionality e.
-  dependent induction e; simplify; eauto.
+  crush.
 Qed.
+
+Hint Rewrite rename_substitution_shift_commute using (solve [ eauto ]) : subst.
 
 Theorem apply_renaming_as_substitution : forall Gamma Gamma' (r: renaming Gamma Gamma'),
     apply_renaming r = apply_substitution (rename_substitution r).
@@ -529,66 +622,55 @@ Proof.
   intros.
   extensionality t; extensionality e.
   generalize dependent Gamma'.
-  induction e; simplify; f_equal; eauto.
-  erewrite !IHe,
-  !rename_substitution_shift_commute by eauto;
-    auto.
-  erewrite ?IHe1, ?IHe2,
-  !rename_substitution_shift_commute by eauto;
-    eauto.
+  induction e; crush.
 Qed.
 
 Arguments renaming_shift {Gamma Gamma'} t gamma [t0] v.
 Arguments substitution_shift {Gamma Gamma'} t gamma [t0] v.
 
 Lemma compose_rename_unshift : forall Gamma t t' (e': expr Gamma t'),
-    compose_substitutions (rename_substitution
+    compose_sub_sub (rename_substitution
                              (renaming_shift t (var_shift t')))
                           (substitution_shift
                              t (substitution_shift_expr e' noop_substitution)) =
     noop_substitution.
 Proof.
-  intros.
-  extensionality t0; extensionality v.
-  dependent destruction v; simplify; eauto.
+  crush.
 Qed.
+
+Hint Rewrite compose_rename_unshift : subst.
+
+Hint Rewrite <- apply_sub_sub : subst.
+Hint Rewrite apply_renaming_as_substitution : subst.
 
 Lemma shift_unshift_noop : forall Gamma t (e: expr Gamma t)
                              t' (e': expr Gamma t'),
     apply_substitution (substitution_shift_expr e' noop_substitution)
                        (expr_shift t' e) = e.
 Proof.
-  induction e; simplify; f_equal;
-    eauto;
-    rewrite !apply_renaming_as_substitution,
-    <- !apply_sub_sub,
-    !compose_rename_unshift,
-    !substitute_noop_substitution;
-    auto.
+  induction e; crush.
 Qed.
+
+Hint Rewrite shift_unshift_noop : subst.
 
 Lemma subst_shift :
   forall Gamma (gamma: substitution Gamma []) t1 t2 (e: expr (t1 :: Gamma) t2) e2,
     apply_substitution (substitution_shift_expr e2 gamma) e =
     subst e2 (apply_substitution (substitution_shift t1 gamma) e).
 Proof.
-  unfold subst.
-  intros.
-  rewrite <- apply_sub_sub.
+  unfold subst; simplify.
   f_equal.
-  unfold compose_substitutions.
-  extensionality t; extensionality v.
-  dependent destruction v; simplify;
-    rewrite ?shift_unshift_noop;
-    eauto.
+  unfold compose_sub_sub.
+  subst_ext; crush.
 Qed.
+
+Hint Rewrite <- subst_shift : subst.
 
 Theorem hereditary_termination_terminating :
   forall t (e: expr [] t),
     hereditary_termination e -> terminating e.
 Proof.
-  intros.
-  destruct t; simplify; eauto.
+  destruct t; crush.
 Qed.
 
 Lemma HT_abs :
@@ -598,15 +680,16 @@ Lemma HT_abs :
     hereditary_termination (app e1 e2).
 Proof.
   intros.
-  edestruct H.
-  intuition.
+  edestruct H; crush.
   generalize H0; intros Ht2.
   apply hereditary_termination_terminating in H0.
-  destruct H0.
-  intuition.
-  remember (abs x).
-  induction H2; subst.
-  induction H1; eauto using HT_prepend_step.
+  destruct H0; crush.
+  remember (abs x) as f.
+  match goal with
+  | [ H: _ |->* f |- _ ] =>
+    induction H; crush
+  end.
+  induction H0; eauto using HT_prepend_step.
   eapply HT_prepend_step; [ | eapply step_ap1 ]; eauto.
 Qed.
 
@@ -614,58 +697,65 @@ Lemma hereditary_termination_succ : forall e,
     hereditary_termination e ->
     hereditary_termination (succ e).
 Proof.
-  simplify; eauto.
+  crush.
 Qed.
 
 Hint Resolve HT_abs.
+
+Lemma succ_step : forall e e',
+    succ e |->* e' ->
+    exists e'', e' = succ e''.
+Proof.
+  intros.
+  remember (succ e).
+  generalize dependent e.
+  induction H; crush.
+  inv_step; eauto.
+Qed.
+
+Hint Resolve HT_prepend_step.
+
+Lemma HT_context_shift : forall Gamma (gamma: substitution Gamma []) t (e: expr [] t),
+    HT_context gamma ->
+    hereditary_termination e ->
+    HT_context (substitution_shift_expr e gamma).
+Proof.
+  unfold HT_context; intros.
+  dependent destruction v; crush.
+Qed.
+
+Hint Resolve HT_context_shift.
+
+(** * The main theorem, with the fully generalized induction hypothesis *)
+
 
 Theorem HT_context_subst : forall Gamma t (e: expr Gamma t) (gamma: substitution Gamma []),
     HT_context gamma -> hereditary_termination (apply_substitution gamma e).
 Proof.
   intros.
   generalize dependent gamma.
-  induction e; simplify; eauto.
-  - eapply hereditary_termination_succ; eauto.
-  - eexists.
-    intuition eauto.
-    rewrite <- subst_shift.
-    eapply IHe.
-    unfold HT_context in *.
-    intros.
-    dependent destruction v; simplify; eauto.
+  induction e; crush.
+  - edestruct IHe; crush.
+  - eexists; intuition crush.
   - specialize (IHe3 gamma H).
-    remember (apply_substitution gamma e3).
-    clear e3 Heqe.
-    generalize IHe3; intro Ht3.
-    eapply hereditary_termination_terminating in Ht3.
-    unfold terminating in Ht3; deex.
-    induction H0.
-    dependent induction H1.
-    eapply HT_prepend_step; try eapply step_iter2; eauto.
-    eapply hereditary_termination_succ' in IHe3.
-    intuition.
-    specialize (H0 _ ltac:(eauto)).
-    eapply HT_prepend_step; try eapply step_iter3; eauto.
-    rewrite <- subst_shift.
-    eapply IHe2.
-    unfold HT_context in *; intros.
-    dependent destruction v; simplify; eauto.
-    eapply HT_prepend_step; try eapply step_iter1; eauto.
+    simplify.
+    induction H0; crush.
+    dependent induction H1; crush.
+    eapply HT_prepend_step; [ | apply step_iter3 ]; crush.
 Qed.
 
-Hint Resolve substitute_noop_substitution.
-
+(** Specialize [HT_context_subst] to noop_substitution *)
 Theorem exprs_ht :
   forall t (e: expr [] t),
     hereditary_termination e.
 Proof.
   intros.
-  replace e with (apply_substitution noop_substitution e) by auto.
-  eapply HT_context_subst.
-  unfold HT_context; intros.
-  inversion v.
+  replace e with (apply_substitution noop_substitution e) by crush.
+  apply HT_context_subst.
+  unfold HT_context; inversion v.
 Qed.
 
+(** Derive termination from [hereditary_termination]. *)
 Theorem exprs_terminating :
   forall t (e: expr [] t),
     terminating e.
@@ -673,6 +763,10 @@ Proof.
   auto using hereditary_termination_terminating, exprs_ht.
 Qed.
 
+(** * We now go on to build a well-founded evaluator for System T. *)
+
+(** First we need a computational version of step. The type builds in the
+correctness proof, since this is the easiest time to do so. *)
 Fixpoint maybe_step t (e: expr [] t) : {e' | step e e'} + {val e}.
   Ltac solve_val := try solve [ right; eauto ].
   destruct e; solve_val.
@@ -706,6 +800,8 @@ Fixpoint maybe_step t (e: expr [] t) : {e' | step e e'} + {val e}.
     inversion v; eauto.
 Defined.
 
+(** The well-founded relation for evaluation is step, but reversed, since when e
+|-> e', e' is smaller than e in terms of remaining evaluation steps. *)
 Definition converse_step t e e' := step (t:=t) e' e.
 
 Theorem converse_step_wf : forall t, well_founded (converse_step (t:=t)).
@@ -719,6 +815,8 @@ Proof.
   pose proof (step_deterministic H H2); subst; eauto.
 Defined.
 
+(** We now define the evaluator with just Fix and the above well-founded
+relation *)
 Definition eval t : expr [] t -> expr [] t.
 Proof.
   refine (Fix (converse_step_wf (t:=t)) (fun _ => expr [] t)
@@ -732,6 +830,10 @@ Proof.
     exact e.
 Defined.
 
+(** The correctness of eval is given by the fact that it returns a value and
+satisfies e |->* eval e; such a function is actually unique due to
+[step_val_unique] *)
+
 Theorem eval_val : forall t (e: expr [] t), val (eval e).
 Proof.
   unfold eval, Fix; intros.
@@ -739,7 +841,15 @@ Proof.
   destruct (maybe_step x); eauto.
 Qed.
 
-(* alternate definition using Function *)
+Theorem eval_step : forall t (e: expr [] t),
+    e |->* eval e.
+Proof.
+  unfold eval, Fix; intros.
+  induction (converse_step_wf e) using Acc_inv_dep; simpl.
+  destruct (maybe_step x) as [[] |]; eauto.
+Qed.
+
+(** Here we give an alternate definition using Function *)
 Function eval' t (e: expr [] t) {wf (converse_step (t:=t)) e} :=
   match maybe_step e with
   | inleft e' => eval' (proj1_sig e')
@@ -757,50 +867,6 @@ Proof.
   functional induction (eval' e); eauto.
 Qed.
 
-(* TODO: move this up and use it for deterministic_clos_refl_R as well *)
-Definition final A (R: A -> A -> Prop) a := forall a', ~R a a'.
-
-Theorem deterministic_clos_refl_unique : forall A (R: A -> A -> Prop),
-    deterministic R ->
-    forall a a' a'',
-      clos_refl_trans_1n R a a' ->
-      clos_refl_trans_1n R a a'' ->
-      final R a' ->
-      final R a'' ->
-      a' = a''.
-Proof.
-  unfold final; intros.
-  generalize dependent a''.
-  induction H0; intros.
-  - inversion H1; subst; eauto.
-    exfalso; intuition eauto.
-  - eauto using deterministic_clos_refl_R.
-Qed.
-
-Lemma val_final : forall t (e: expr [] t), val e ->
-                                      final step e.
-Proof.
-  unfold final; eauto using val_no_step.
-Qed.
-
-Lemma step_val_unique : forall t (e e' e'': expr [] t),
-    e |->* e' ->
-    e |->* e'' ->
-    val e' ->
-    val e'' ->
-    e' = e''.
-Proof.
-  eauto using deterministic_clos_refl_unique, step_deterministic, val_final.
-Qed.
-
-Theorem eval_step : forall t (e: expr [] t),
-    e |->* eval e.
-Proof.
-  unfold eval, Fix; intros.
-  induction (converse_step_wf e) using Acc_inv_dep; simpl.
-  destruct (maybe_step x) as [[] |]; eauto.
-Qed.
-
 Theorem eval'_step : forall t (e: expr [] t),
     e |->* eval' e.
 Proof.
@@ -809,6 +875,7 @@ Proof.
   destruct e'; eauto.
 Qed.
 
+(** The correctness proofs guarantee eval and eval' agree. *)
 Theorem eval_eq_eval' : forall t (e: expr [] t),
     eval e = eval' e.
 Proof.
@@ -818,7 +885,7 @@ Proof.
     eval_val, eval'_val.
 Qed.
 
-(* Reflecting well-typed terms into Gallina terms *)
+(** * Some unfinished work on reflecting well-typed terms into Gallina terms. *)
 
 Fixpoint type_denote (t: type) : Type :=
   match t with
