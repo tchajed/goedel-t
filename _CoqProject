@@ -1,5 +1,6 @@
 -R . SystemT
 
 SystemT.v
+Examples.v
 Reflect.v
 Extraction.v

@@ -1,5 +1,5 @@
 default: Makefile.coq
-	$(MAKE) -f Makefile.coq SystemT.vo
+	$(MAKE) -f Makefile.coq SystemT.vo Examples.vo
 
 all: Makefile.coq
 	$(MAKE) -f Makefile.coq all
