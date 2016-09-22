@@ -46,6 +46,8 @@ Inductive variable : context -> type -> Type :=
 | var_here : forall Gamma t, variable (t :: Gamma) t
 | var_outer : forall Gamma t t', variable Gamma t -> variable (t' :: Gamma) t.
 
+Arguments var_here {Gamma} {t}.
+
 Inductive expr (Gamma: context) : type -> Type :=
 | var : forall t (v: variable Gamma t), expr Gamma t
 | zero : expr Gamma natTy
@@ -81,7 +83,7 @@ Program Definition renaming_shift
   renaming (t :: Gamma) (t :: Gamma') :=
   fun t' v =>
     match v with
-      | var_here _ _ => var_here _ _
+      | var_here => var_here
       | var_outer _ v' => var_outer _ (gamma _ v')
     end.
 
@@ -121,7 +123,7 @@ Program Definition substitution_shift
         (gamma: substitution Gamma Gamma') :
   substitution (t :: Gamma) (t :: Gamma') := fun t' v =>
   match v with
-    | var_here _ _ => var (var_here _ _)
+    | var_here => var var_here
     | var_outer _ v' => expr_shift t (gamma _ v')
   end.
 
@@ -132,7 +134,7 @@ Program Definition substitution_shift_expr
   substitution (t :: Gamma) Gamma' :=
   fun t' (v: variable (t :: Gamma) t') =>
     match v with
-      | var_here _ _ => e'
+      | var_here => e'
       | var_outer _ v' => gamma _ v'
     end.
 
