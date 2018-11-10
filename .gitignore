@@ -1,10 +1,14 @@
 *.aux
 Makefile.coq
+Makefile.coq.conf
 
 # Coq build files
 *.glob
 *.v.d
 *.vo
+.coqdeps.d
 
 # Extraction
 eval.hs
+eval.o
+eval.hi
