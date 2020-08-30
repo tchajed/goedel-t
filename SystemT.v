@@ -388,7 +388,7 @@ Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
 
 Arguments step {t} e e'.
 
-Hint Constructors step val.
+Hint Constructors step val : core.
 
 (** * We prove progress only as an exercise. *)
 Theorem progress : forall t (e: expr [] t),
@@ -413,8 +413,8 @@ Ltac inv_step :=
 
 (** * General relation properties. *)
 
-Hint Constructors clos_refl_trans_1n.
-Arguments clos_refl_trans_1n {A} R _ _.
+Hint Constructors clos_refl_trans_1n : core.
+Arguments clos_refl_trans_1n {A} R _ _ : assert.
 
 (** A deterministic relation can also be viewed as a (non-computational) partial
 function *)
@@ -508,7 +508,7 @@ Proof.
   eauto using step_deterministic, val_final, deterministic_clos_refl_R.
 Qed.
 
-Hint Resolve step_clos_refl_R.
+Hint Resolve step_clos_refl_R : core.
 
 Lemma step_val_unique : forall t (e e' e'': expr [] t),
     e |->* e' ->
@@ -533,7 +533,7 @@ Inductive HT : forall t (e: expr [] t), Prop :=
 
 Definition terminating t (e: expr [] t) : Prop := exists e', e |->* e' /\ val e'.
 
-Hint Unfold terminating.
+Hint Unfold terminating : core.
 
 Fixpoint hereditary_termination t : expr [] t -> Prop :=
   match t with
@@ -565,7 +565,7 @@ Proof.
   induction 1; crush.
 Qed.
 
-Hint Resolve step_respects_succ.
+Hint Resolve step_respects_succ : core.
 
 (** val turns out to be decidable *)
 Definition val_dec : forall t (e: expr [] t), {val e} + {~val e}.
@@ -597,7 +597,7 @@ Proof.
   induction t; simplify; eauto.
 Qed.
 
-Hint Resolve HT_respects_step.
+Hint Resolve HT_respects_step : core.
 
 Lemma HT_prepend_step : forall t (e e': expr [] t),
     hereditary_termination e' ->
@@ -629,8 +629,8 @@ Proof.
   induction e; crush.
 Qed.
 
-Arguments renaming_shift {Gamma Gamma'} t gamma [t0] v.
-Arguments substitution_shift {Gamma Gamma'} t gamma [t0] v.
+Arguments renaming_shift {Gamma Gamma'} t gamma [t0] v : rename.
+Arguments substitution_shift {Gamma Gamma'} t gamma [t0] v : rename.
 
 Lemma compose_rename_unshift : forall Gamma t t' (e': expr Gamma t'),
     compose_sub_sub (rename_substitution
@@ -704,7 +704,7 @@ Proof.
   crush.
 Qed.
 
-Hint Resolve HT_abs.
+Hint Resolve HT_abs : core.
 
 Lemma succ_step : forall e e',
     succ e |->* e' ->
@@ -717,7 +717,7 @@ Proof.
   inv_step; eauto.
 Qed.
 
-Hint Resolve HT_prepend_step.
+Hint Resolve HT_prepend_step : core.
 
 Lemma HT_context_shift : forall Gamma (gamma: substitution Gamma []) t (e: expr [] t),
     HT_context gamma ->
@@ -728,7 +728,7 @@ Proof.
   dependent destruction v; crush.
 Qed.
 
-Hint Resolve HT_context_shift.
+Hint Resolve HT_context_shift : core.
 
 (** * The main theorem, with the fully generalized induction hypothesis *)
 
