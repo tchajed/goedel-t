@@ -1,6 +1,6 @@
 # Totality of Gödel's System T
 
-[![Build Status](https://travis-ci.org/tchajed/goedel-t.svg?branch=master)](https://travis-ci.org/tchajed/goedel-t)
+[![CI](https://github.com/tchajed/goedel-t/actions/workflows/coq-action.yml/badge.svg)](https://github.com/tchajed/goedel-t/actions/workflows/coq-action.yml)
 
 Formalization of Tait's proof of the totality of Gödel's System T using logical relations and hereditary termination in Coq.
 
