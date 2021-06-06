@@ -29,6 +29,8 @@ Require Import Recdef.
 
 Global Set Implicit Arguments.
 
+Set Default Goal Selector "!".
+
 (** * Language definitions *)
 
 Inductive type :=
@@ -93,19 +95,19 @@ Definition apply_renaming Gamma Gamma' (gamma: renaming Gamma Gamma')
   generalize dependent Gamma'.
   generalize dependent Gamma.
   induction 1; intros; subst.
-  + exact (var (gamma _ v)).
-  + exact zero.
-  + apply succ.
+  - exact (var (gamma _ v)).
+  - exact zero.
+  - apply succ.
     now apply IHe.
-  + eapply abs.
+  - eapply abs.
     eapply IHe; trivial.
     now apply renaming_shift.
-  + now eapply app; [ apply IHe1 | apply IHe2 ].
-  + eapply iter.
-    now apply IHe1.
-    apply IHe2; trivial.
-    now apply renaming_shift.
-    now apply IHe3.
+  - now eapply app; [ apply IHe1 | apply IHe2 ].
+  - eapply iter.
+    + now apply IHe1.
+    + apply IHe2; trivial.
+      now apply renaming_shift.
+    + now apply IHe3.
 Defined.
 
 Definition var_shift Gamma t' : renaming Gamma (t'::Gamma) :=
@@ -144,19 +146,19 @@ Definition apply_substitution Gamma Gamma' (gamma: substitution Gamma Gamma')
   generalize dependent Gamma'.
   generalize dependent Gamma.
   induction 1; intros; subst.
-  + exact (gamma _ v).
-  + exact zero.
-  + apply succ.
+  - exact (gamma _ v).
+  - exact zero.
+  - apply succ.
     now apply IHe.
-  + eapply abs.
+  - eapply abs.
     eapply IHe; trivial.
     now apply substitution_shift.
-  + now eapply app; [ apply IHe1 | apply IHe2 ].
-  + eapply iter.
-    now apply IHe1.
-    apply IHe2; trivial.
-    now apply substitution_shift.
-    now apply IHe3.
+  - now eapply app; [ apply IHe1 | apply IHe2 ].
+  - eapply iter.
+    + now apply IHe1.
+    + apply IHe2; trivial.
+      now apply substitution_shift.
+    + now apply IHe3.
 Defined.
 
 (** * Four types of composition, between renamings and substitutions. *)
@@ -583,10 +585,10 @@ Proof.
   remember (succ e).
   generalize dependent e.
   induction H; crush.
-  inversion H0; eauto.
+  - inversion H0; eauto.
 
-  inv_step.
-  edestruct IHclos_refl_trans_1n; crush.
+  - inv_step.
+    edestruct IHclos_refl_trans_1n; crush.
 Qed.
 
 Lemma HT_respects_step : forall t (e e': expr [] t),
@@ -782,26 +784,24 @@ Fixpoint maybe_step t (e: expr [] t) : {e' | step e e'} + {val e}.
   - left.
     destruct (maybe_step _ e1) as [[e1' ?] |].
     (* step_ap1 *)
-    exists (app e1' e2); eauto.
-    destruct (maybe_step _ e2) as [[e2' ?] |].
-    (* step_ap2 *)
-    exists (app e1 e2'); eauto.
-    dependent destruction e1;
-      try solve [ exfalso; inversion v0 ].
-    exists (subst e2 e1); eauto.
-    exfalso; inversion v.
-    exfalso; inversion v.
+    + exists (app e1' e2); eauto.
+    + destruct (maybe_step _ e2) as [[e2' ?] |].
+      (* step_ap2 *)
+      { exists (app e1 e2'); eauto. }
+      dependent destruction e1;
+        try solve [ exfalso; inversion v ].
+      exists (subst e2 e1); eauto.
   - left.
     destruct (maybe_step _ e3) as [[e3' ?] |].
     (* step_iter1 *)
-    exists (iter e1 e2 e3'); eauto.
+    { exists (iter e1 e2 e3'); eauto. }
     dependent destruction e3;
       try solve [ exfalso; inversion v ].
-    (* step_iter2 *)
-    exists e1; eauto.
-    (* step_iter3 *)
-    exists (subst (iter e1 e2 e3) e2).
-    inversion v; eauto.
+    + (* step_iter2 *)
+      exists e1; eauto.
+    + (* step_iter3 *)
+      exists (subst (iter e1 e2 e3) e2).
+      inversion v; eauto.
 Defined.
 
 (** The well-founded relation for evaluation is step, but reversed, since when e
@@ -813,10 +813,10 @@ Proof.
   unfold well_founded, converse_step; intros t e.
   pose proof (exprs_terminating e); simplify.
   induction H.
-  constructor; intros.
-  exfalso; eapply val_no_step; eauto.
-  constructor; intros.
-  pose proof (step_deterministic H H2); subst; eauto.
+  - constructor; intros.
+    exfalso; eapply val_no_step; eauto.
+  - constructor; intros.
+    pose proof (step_deterministic H H2); subst; eauto.
 Defined.
 
 (** We now define the evaluator with just Fix and the above well-founded
@@ -860,9 +860,9 @@ Function eval' t (e: expr [] t) {wf (converse_step (t:=t)) e} :=
   | inright _ => e
   end.
 Proof.
-  unfold converse_step.
-  destruct e'; auto.
-  apply converse_step_wf.
+  - unfold converse_step.
+    destruct e'; auto.
+  - apply converse_step_wf.
 Defined.
 
 Theorem eval'_val : forall t (e: expr [] t), val (eval' e).
