@@ -1,5 +1,7 @@
 Require Import SystemT.
 
+Set Default Goal Selector "!".
+
 Tactic Notation "take" "step" := eapply Relation_Operators.rt1n_trans.
 Ltac iterate := match goal with
                 | |- iter _ _ zero |-> _ =>
@@ -25,15 +27,15 @@ Section AddExample.
   Proof.
     unfold add.
     take step.
-    iterate.
+    { iterate. }
     cbn.
     take step.
-    succ steps.
-    iterate.
+    { succ steps.
+      iterate. }
     cbn.
     take step.
-    succ steps.
-    iterate.
+    { succ steps.
+      iterate. }
     finish.
   Qed.
 
