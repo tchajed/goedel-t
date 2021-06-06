@@ -1,5 +1,7 @@
 -R . SystemT
 
+-arg -w -arg -deprecated-hint-rewrite-without-locality
+
 SystemT.v
 Examples.v
 Reflect.v

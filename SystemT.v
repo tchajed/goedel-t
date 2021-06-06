@@ -388,7 +388,7 @@ Inductive step : forall t, expr [] t -> expr [] t -> Prop :=
 
 Arguments step {t} e e'.
 
-Hint Constructors step val : core.
+Local Hint Constructors step val : core.
 
 (** * We prove progress only as an exercise. *)
 Theorem progress : forall t (e: expr [] t),
@@ -413,7 +413,7 @@ Ltac inv_step :=
 
 (** * General relation properties. *)
 
-Hint Constructors clos_refl_trans_1n : core.
+Local Hint Constructors clos_refl_trans_1n : core.
 Arguments clos_refl_trans_1n {A} R _ _ : assert.
 
 (** A deterministic relation can also be viewed as a (non-computational) partial
@@ -508,7 +508,7 @@ Proof.
   eauto using step_deterministic, val_final, deterministic_clos_refl_R.
 Qed.
 
-Hint Resolve step_clos_refl_R : core.
+Local Hint Resolve step_clos_refl_R : core.
 
 Lemma step_val_unique : forall t (e e' e'': expr [] t),
     e |->* e' ->
@@ -533,7 +533,7 @@ Inductive HT : forall t (e: expr [] t), Prop :=
 
 Definition terminating t (e: expr [] t) : Prop := exists e', e |->* e' /\ val e'.
 
-Hint Unfold terminating : core.
+Local Hint Unfold terminating : core.
 
 Fixpoint hereditary_termination t : expr [] t -> Prop :=
   match t with
@@ -565,7 +565,7 @@ Proof.
   induction 1; crush.
 Qed.
 
-Hint Resolve step_respects_succ : core.
+Local Hint Resolve step_respects_succ : core.
 
 (** val turns out to be decidable *)
 Definition val_dec : forall t (e: expr [] t), {val e} + {~val e}.
@@ -597,7 +597,7 @@ Proof.
   induction t; simplify; eauto.
 Qed.
 
-Hint Resolve HT_respects_step : core.
+Local Hint Resolve HT_respects_step : core.
 
 Lemma HT_prepend_step : forall t (e e': expr [] t),
     hereditary_termination e' ->
@@ -684,7 +684,7 @@ Lemma HT_abs :
     hereditary_termination (app e1 e2).
 Proof.
   intros.
-  edestruct H; crush.
+  destruct H; crush.
   generalize H0; intros Ht2.
   apply hereditary_termination_terminating in H0.
   destruct H0; crush.
@@ -693,8 +693,8 @@ Proof.
   | [ H: _ |->* f |- _ ] =>
     induction H; crush
   end.
-  induction H0; eauto using HT_prepend_step.
-  eapply HT_prepend_step; [ | eapply step_ap1 ]; eauto.
+  - induction H0; eauto using HT_prepend_step.
+  - induction H0; eauto using HT_prepend_step.
 Qed.
 
 Lemma hereditary_termination_succ : forall e,
@@ -704,7 +704,7 @@ Proof.
   crush.
 Qed.
 
-Hint Resolve HT_abs : core.
+Local Hint Resolve HT_abs : core.
 
 Lemma succ_step : forall e e',
     succ e |->* e' ->
@@ -717,7 +717,7 @@ Proof.
   inv_step; eauto.
 Qed.
 
-Hint Resolve HT_prepend_step : core.
+Local Hint Resolve HT_prepend_step : core.
 
 Lemma HT_context_shift : forall Gamma (gamma: substitution Gamma []) t (e: expr [] t),
     HT_context gamma ->
@@ -728,7 +728,7 @@ Proof.
   dependent destruction v; crush.
 Qed.
 
-Hint Resolve HT_context_shift : core.
+Local Hint Resolve HT_context_shift : core.
 
 (** * The main theorem, with the fully generalized induction hypothesis *)
 
